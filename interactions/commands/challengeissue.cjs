@@ -11,36 +11,72 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('challengeissue')
     .setDescription('Issue a clan challenge (clan leaders only)')
+
+    // ───────── REQUIRED OPTIONS FIRST ─────────
     .addStringOption(o =>
-      o.setName('pokemon1').setDescription('Target Pokémon #1').setRequired(true)
-    )
-    .addStringOption(o =>
-      o.setName('pokemon2').setDescription('Target Pokémon #2').setRequired(false)
-    )
-    .addStringOption(o =>
-      o.setName('pokemon3').setDescription('Target Pokémon #3').setRequired(false)
+      o
+        .setName('pokemon1')
+        .setDescription('Target Pokémon #1')
+        .setRequired(true)
     )
     .addIntegerOption(o =>
-      o.setName('duration_hours').setDescription('Duration in hours').setRequired(true).setMinValue(1).setMaxValue(48)
+      o
+        .setName('duration_hours')
+        .setDescription('Duration in hours')
+        .setRequired(true)
+        .setMinValue(1)
+        .setMaxValue(48)
+    )
+
+    // ───────── OPTIONAL OPTIONS AFTER ─────────
+    .addStringOption(o =>
+      o
+        .setName('pokemon2')
+        .setDescription('Target Pokémon #2')
+        .setRequired(false)
+    )
+    .addStringOption(o =>
+      o
+        .setName('pokemon3')
+        .setDescription('Target Pokémon #3')
+        .setRequired(false)
     )
     .addBooleanOption(o =>
-      o.setName('start_now').setDescription('Start immediately?').setRequired(false)
+      o
+        .setName('start_now')
+        .setDescription('Start immediately?')
+        .setRequired(false)
     )
     .addIntegerOption(o =>
-      o.setName('start_in_minutes').setDescription('If not start_now, start in N minutes').setRequired(false).setMinValue(1).setMaxValue(24 * 60)
+      o
+        .setName('start_in_minutes')
+        .setDescription('If not start_now, start in N minutes')
+        .setRequired(false)
+        .setMinValue(1)
+        .setMaxValue(24 * 60)
     )
     .addStringOption(o =>
-      o.setName('notes').setDescription('Optional notes').setRequired(false)
+      o
+        .setName('notes')
+        .setDescription('Optional notes')
+        .setRequired(false)
     ),
 
   async execute(client, interaction) {
     const { guild, member, user } = interaction;
+
     if (!guild || !member) {
-      return interaction.reply({ content: '❌ Must be used in a server.', ephemeral: true });
+      return interaction.reply({
+        content: '❌ Must be used in a server.',
+        ephemeral: true
+      });
     }
 
     if (!isClanLeader(member)) {
-      return interaction.reply({ content: '❌ Clan leaders only.', ephemeral: true });
+      return interaction.reply({
+        content: '❌ Clan leaders only.',
+        ephemeral: true
+      });
     }
 
     const p1 = interaction.options.getString('pokemon1', true).trim();
@@ -52,10 +88,14 @@ module.exports = {
     const startInMinutes = interaction.options.getInteger('start_in_minutes', false);
     const notes = interaction.options.getString('notes', false);
 
-    const pokemons = [p1, p2, p3].filter(Boolean).map(s => String(s).trim()).filter(Boolean);
+    const pokemons = [p1, p2, p3]
+      .filter(Boolean)
+      .map(s => String(s).trim())
+      .filter(Boolean);
 
     const now = Date.now();
     let startTime = now;
+
     if (!startNow) {
       if (!startInMinutes) {
         return interaction.reply({
@@ -63,11 +103,10 @@ module.exports = {
           ephemeral: true
         });
       }
-      startTime = now + (startInMinutes * 60_000);
+      startTime = now + startInMinutes * 60_000;
     }
 
     const endTime = startTime + durationHours * 60 * 60_000;
-
     const id = genId();
 
     await db.createChallenge({
