@@ -2,14 +2,16 @@ const db = require('../database.cjs');
 const {
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder
+  ButtonStyle
 } = require('discord.js');
 const {
   getHighestRarityForList,
   getRarityDisplayLabel,
   pointsForRarity
 } = require('./rarity.cjs');
+
+// 🔽 NEW: renderer import (copied pipeline from other bot)
+const { createChallengeCard } = require('../renderers/challengeCard.cjs');
 
 function safeJsonParse(s, fallback) {
   try {
@@ -35,23 +37,15 @@ async function postChallengeCard(client, challenge) {
   const rarityLabel = getRarityDisplayLabel(rarityKey);
   const pts = pointsForRarity(rarityKey);
 
-  const startUnix = Math.floor(Number(challenge.start_time) / 1000);
-  const endUnix = Math.floor(Number(challenge.end_time) / 1000);
-
-  const embed = new EmbedBuilder()
-    .setTitle(`⚔️ Clan Challenge #${challenge.id}`)
-    .setDescription(
-      [
-        `**Targets:** ${pokemons.map(p => `\`${p}\``).join(', ') || '—'}`,
-        `**Rarity:** ${rarityLabel}`,
-        `**Points:** ${pts}`,
-        `**Starts:** <t:${startUnix}:f>`,
-        `**Ends:** <t:${endUnix}:f>`,
-        challenge.notes ? `**Notes:** ${challenge.notes}` : null
-      ]
-        .filter(Boolean)
-        .join('\n')
-    );
+  // ─────────────────────────────
+  // 🔽 RENDER PNG CARD (NEW)
+  // ─────────────────────────────
+  const buffer = await createChallengeCard(
+    challenge,
+    rarityKey,
+    rarityLabel,
+    pts
+  );
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -61,7 +55,12 @@ async function postChallengeCard(client, challenge) {
   );
 
   const msg = await channel.send({
-    embeds: [embed],
+    files: [
+      {
+        attachment: buffer,
+        name: `challenge_${challenge.id}.png`
+      }
+    ],
     components: [row]
   });
 
