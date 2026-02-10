@@ -1,3 +1,4 @@
+// renderers/challengeCard.cjs
 const fs = require('fs');
 const path = require('path');
 const { createCanvas, loadImage } = require('canvas');
@@ -6,68 +7,101 @@ const CARD_WIDTH = 2200;
 const CARD_HEIGHT = 1300;
 const MARGIN = 40;
 
-// Output folder
+// NOTE: card images saved here
 const CARDS_DIR = path.join(__dirname, 'card-images');
+// NOTE: sprites are in the root /sprites folder (one level up)
+const SPRITES_DIR = path.join(__dirname, '..', 'sprites');
 
-// Sprites live in Roaming Companion (shared)
-const SPRITES_DIR = '/home/pi/discord-bot/sprites';
-
+// Ensure output folder exists
 if (!fs.existsSync(CARDS_DIR)) {
   fs.mkdirSync(CARDS_DIR, { recursive: true });
 }
 
+// Rarity styles: gradient + box colour
 const rarityStyles = {
+  paradox: {
+    gradientFrom: '#3b82f6',
+    gradientTo: '#a855f7',
+    boxColor: 'rgba(15, 23, 42, 0.95)'
+  },
+  roamerMonth: {
+    gradientFrom: '#f97316',
+    gradientTo: '#ec4899',
+    boxColor: 'rgba(17, 24, 39, 0.95)'
+  },
   legendary: {
     gradientFrom: '#1d4ed8',
     gradientTo: '#22d3ee',
     boxColor: 'rgba(15, 23, 42, 0.95)'
   },
   rare: {
+    gradientFrom: '#1d4ed8',
+    gradientTo: '#22d3ee',
+    boxColor: 'rgba(15, 23, 42, 0.95)'
+  },
+  common: {
     gradientFrom: '#16a34a',
     gradientTo: '#0f766e',
     boxColor: 'rgba(5, 46, 22, 0.95)'
-  },
-  common: {
-    gradientFrom: '#64748b',
-    gradientTo: '#334155',
-    boxColor: 'rgba(15, 23, 42, 0.95)'
   }
 };
 
-function getStyle(rarity) {
-  return rarityStyles[rarity] || rarityStyles.common;
+function getStyleForRarity(key) {
+  return rarityStyles[key] || rarityStyles.common;
 }
 
-function roundedRect(ctx, x, y, w, h, r) {
-  const rad = Math.min(r, w / 2, h / 2);
+function roundedRectPath(ctx, x, y, w, h, r) {
+  const radius = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
-  ctx.moveTo(x + rad, y);
-  ctx.lineTo(x + w - rad, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
-  ctx.lineTo(x + w, y + h - rad);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
-  ctx.lineTo(x + rad, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - rad);
-  ctx.lineTo(x, y + rad);
-  ctx.quadraticCurveTo(x, y, x + rad, y);
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + w - radius, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+  ctx.lineTo(x + w, y + h - radius);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+  ctx.lineTo(x + radius, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
   ctx.closePath();
 }
 
-function getSpritePath(name) {
+// Simple word-wrap helper
+function wrapText(ctx, text, maxWidth) {
+  const words = String(text || '').split(/\s+/);
+  const lines = [];
+  let current = '';
+
+  for (const word of words) {
+    const test = current ? current + ' ' + word : word;
+    if (ctx.measureText(test).width > maxWidth && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = test;
+    }
+  }
+  if (current) lines.push(current);
+  if (!lines.length) lines.push('');
+  return lines;
+}
+
+// Map Pokémon name → sprite path
+function getSpritePathForPokemon(name) {
   if (!name) return null;
   return path.join(SPRITES_DIR, `${name}.png`);
 }
 
-async function drawSpriteBox(ctx, x, y, size, name) {
+// Draw a single sprite box
+async function drawSpriteBox(ctx, x, y, size, pokemonName) {
   ctx.save();
-  roundedRect(ctx, x, y, size, size, 30);
-  ctx.fillStyle = 'rgba(15,23,42,0.98)';
+  roundedRectPath(ctx, x, y, size, size, 30);
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.98)';
   ctx.fill();
   ctx.lineWidth = 6;
   ctx.strokeStyle = '#f9fafb';
   ctx.stroke();
 
-  const spritePath = getSpritePath(name);
+  const spritePath = getSpritePathForPokemon(pokemonName);
   let img = null;
 
   try {
@@ -84,6 +118,7 @@ async function drawSpriteBox(ctx, x, y, size, name) {
 
     let w = maxW;
     let h = maxH;
+
     if (aspect > 1) h = maxW / aspect;
     else w = maxH * aspect;
 
@@ -99,70 +134,193 @@ async function drawSpriteBox(ctx, x, y, size, name) {
   ctx.restore();
 }
 
-async function createChallengeCard(challenge, rarityKey, rarityLabel) {
-  const style = getStyle(rarityKey);
-  const pokemons = JSON.parse(challenge.pokemons_json || '[]');
+/**
+ * createChallengeCard
+ *
+ * Mirrors createBountyCard exactly.
+ *
+ * options:
+ *  - challengeId
+ *  - clanName
+ *  - rarityKey
+ *  - rarityLabel
+ *  - pokemons[]
+ *  - startLabel
+ *  - endLabel
+ *  - durationLabel
+ *  - note
+ *  - pointsLabel
+ *  - avatarUrl
+ */
+async function createChallengeCard(options) {
+  const {
+    challengeId,
+    clanName,
+    rarityKey,
+    rarityLabel,
+    pokemons,
+    startLabel,
+    endLabel,
+    durationLabel,
+    note,
+    pointsLabel,
+    avatarUrl
+  } = options;
+
+  const style = getStyleForRarity(rarityKey);
 
   const canvas = createCanvas(CARD_WIDTH, CARD_HEIGHT);
   const ctx = canvas.getContext('2d');
 
-  // Background
-  const g = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
-  g.addColorStop(0, style.gradientFrom);
-  g.addColorStop(1, style.gradientTo);
-  ctx.fillStyle = g;
+  // Background gradient
+  const gradient = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
+  gradient.addColorStop(0, style.gradientFrom);
+  gradient.addColorStop(1, style.gradientTo);
+  ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 
-  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.20)';
   ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 
-  // Left box
+  // Layout
+  const totalInnerWidth = CARD_WIDTH - MARGIN * 3;
+  const rightMaxWidth = totalInnerWidth * 0.4;
+  const rightMaxHeight = CARD_HEIGHT - 2 * MARGIN;
+  const imageSize = Math.min(rightMaxWidth, rightMaxHeight);
+
+  const rightX = CARD_WIDTH - MARGIN - imageSize;
+  const rightY = MARGIN;
+
   const leftX = MARGIN;
   const leftY = MARGIN;
-  const leftW = CARD_WIDTH * 0.55;
-  const leftH = CARD_HEIGHT - MARGIN * 2;
+  const leftWidth = rightX - leftX - MARGIN;
+  const leftHeight = CARD_HEIGHT - 2 * MARGIN;
 
-  roundedRect(ctx, leftX, leftY, leftW, leftH, 40);
+  // Avatar
+  ctx.save();
+  try {
+    const img = await loadImage(avatarUrl);
+    const aspect = img.width / img.height;
+
+    let w = imageSize;
+    let h = imageSize;
+    if (aspect > 1) h = imageSize / aspect;
+    else w = imageSize * aspect;
+
+    roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
+    ctx.clip();
+    ctx.drawImage(
+      img,
+      rightX + (imageSize - w) / 2,
+      rightY + (imageSize - h) / 2,
+      w,
+      h
+    );
+
+    ctx.restore();
+    ctx.save();
+    roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = 'rgba(248,250,252,0.9)';
+    ctx.stroke();
+  } catch {
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // Text layout
+  const FONT_SIZE = 55;
+  const lineHeight = FONT_SIZE * 1.25;
+  const groupSpacing = lineHeight * 0.7;
+
+  const pokemonList = pokemons?.length ? pokemons : ['None'];
+
+  const rows = [
+    { label: 'Clan:', value: clanName || 'Clan Challenge' },
+    { spacer: true },
+    { label: 'Target:', value: pokemonList[0] },
+    ...pokemonList.slice(1).map(p => ({ label: '', value: p })),
+    { label: 'Rarity:', value: rarityLabel },
+    { label: 'Points:', value: pointsLabel },
+    { spacer: true },
+    { label: 'Start time:', value: startLabel },
+    { label: 'Ends:', value: endLabel },
+    { label: 'Duration:', value: durationLabel }
+  ];
+
+  const infoPaddingX = 50;
+  const infoPaddingY = 50;
+
+  const nonSpacer = rows.filter(r => !r.spacer).length;
+  const spacerCount = rows.filter(r => r.spacer).length;
+  const infoTextHeight =
+    nonSpacer * lineHeight + spacerCount * groupSpacing;
+
+  const infoBoxH = infoPaddingY * 2 + infoTextHeight;
+
+  roundedRectPath(ctx, leftX, leftY, leftWidth, infoBoxH, 40);
   ctx.fillStyle = style.boxColor;
   ctx.fill();
   ctx.lineWidth = 8;
   ctx.strokeStyle = '#f9fafb';
   ctx.stroke();
 
-  ctx.font = 'bold 64px sans-serif';
-  ctx.fillStyle = '#f9fafb';
-  ctx.fillText(`Clan Challenge #${challenge.id}`, leftX + 60, leftY + 100);
+  ctx.font = `bold ${FONT_SIZE}px sans-serif`;
 
-  ctx.font = '48px sans-serif';
-  ctx.fillText(`Rarity: ${rarityLabel}`, leftX + 60, leftY + 190);
-
-  let y = leftY + 300;
-  ctx.font = 'bold 52px sans-serif';
-  ctx.fillText('Targets:', leftX + 60, y);
-
-  ctx.font = '48px sans-serif';
-  y += 80;
-  for (const p of pokemons) {
-    ctx.fillText(`• ${p}`, leftX + 90, y);
-    y += 70;
+  let maxLabelWidth = 0;
+  for (const r of rows) {
+    if (r.label) {
+      maxLabelWidth = Math.max(
+        maxLabelWidth,
+        ctx.measureText(r.label).width
+      );
+    }
   }
 
-  // Sprites bottom-right
-  const spriteSize = 260;
-  const startX = CARD_WIDTH - MARGIN - spriteSize * 3 - 60;
+  let y =
+    leftY +
+    (infoBoxH - infoTextHeight) / 2;
+
+  for (const r of rows) {
+    if (r.spacer) {
+      y += groupSpacing;
+      continue;
+    }
+
+    ctx.fillStyle = '#facc15';
+    ctx.fillText(r.label, leftX + infoPaddingX, y);
+
+    ctx.fillStyle = '#f9fafb';
+    ctx.fillText(
+      r.value || '',
+      leftX + infoPaddingX + maxLabelWidth + 50,
+      y
+    );
+
+    y += lineHeight;
+  }
+
+  // Sprites
+  const spriteSize = imageSize / 3;
   const spriteY = CARD_HEIGHT - MARGIN - spriteSize;
 
-  for (let i = 0; i < Math.min(3, pokemons.length); i++) {
+  for (let i = 0; i < Math.min(3, pokemonList.length); i++) {
     await drawSpriteBox(
       ctx,
-      startX + i * (spriteSize + 30),
+      rightX + i * (spriteSize + 30),
       spriteY,
       spriteSize,
-      pokemons[i]
+      pokemonList[i]
     );
   }
 
-  return canvas.toBuffer('image/png');
+  const buffer = canvas.toBuffer('image/png');
+  const filePath = path.join(CARDS_DIR, `challenge_${challengeId}.png`);
+  fs.writeFileSync(filePath, buffer);
+
+  return buffer;
 }
 
-module.exports = { createChallengeCard };
+module.exports = {
+  createChallengeCard
+};
