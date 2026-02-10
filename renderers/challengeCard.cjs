@@ -1,9 +1,9 @@
+// renderers/challengeCard.cjs
 const fs = require('fs');
 const path = require('path');
 const { createCanvas, loadImage } = require('canvas');
 
-// 🔗 Shared Pokémon helper
-const { getPokemonByName } = require('../utils/sharedPokemon.cjs');
+const { getPokemonByKey, getPokemonByName } = require('../utils/sharedPokemon.cjs');
 
 const CARD_WIDTH = 2200;
 const CARD_HEIGHT = 1300;
@@ -16,7 +16,7 @@ if (!fs.existsSync(CARDS_DIR)) {
   fs.mkdirSync(CARDS_DIR, { recursive: true });
 }
 
-// Rarity styles (unchanged)
+// Rarity styles (match bounty)
 const rarityStyles = {
   paradox: {
     gradientFrom: '#3b82f6',
@@ -64,7 +64,7 @@ function roundedRectPath(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// Simple word-wrap helper
+// Simple word-wrap helper (match bounty style)
 function wrapText(ctx, text, maxWidth) {
   const words = String(text || '').split(/\s+/);
   const lines = [];
@@ -84,8 +84,42 @@ function wrapText(ctx, text, maxWidth) {
   return lines.length ? lines : [''];
 }
 
+// Resolve sprite path coming from shared DB
+function resolveSpritePath(spritePath) {
+  if (!spritePath) return null;
+
+  // Absolute path stored in DB
+  if (path.isAbsolute(spritePath)) {
+    return fs.existsSync(spritePath) ? spritePath : null;
+  }
+
+  // Relative path stored in DB:
+  // 1) try relative to shared-data dir
+  const sharedBase = '/home/pi/shared-data';
+  const p1 = path.resolve(sharedBase, spritePath);
+  if (fs.existsSync(p1)) return p1;
+
+  // 2) try relative to project root
+  const p2 = path.resolve(process.cwd(), spritePath);
+  if (fs.existsSync(p2)) return p2;
+
+  return null;
+}
+
+async function getPokemonRow(pokemonNameOrKey) {
+  if (!pokemonNameOrKey) return null;
+
+  // Try key first (latios)
+  let row = await getPokemonByKey(pokemonNameOrKey).catch(() => null);
+  if (row) return row;
+
+  // Then display name (Latios)
+  row = await getPokemonByName(pokemonNameOrKey).catch(() => null);
+  return row || null;
+}
+
 /**
- * ACTIVE challenge card renderer
+ * ACTIVE challenge card renderer (mirrors bounty active card)
  */
 async function createChallengeCard(options) {
   const {
@@ -94,7 +128,7 @@ async function createChallengeCard(options) {
     rankName,
     rarityKey,
     rarityLabel,
-    pokemonName,
+    pokemonName, // single pokemon (key or name)
     startLabel,
     endLabel,
     durationLabel,
@@ -104,20 +138,26 @@ async function createChallengeCard(options) {
 
   const style = getStyleForRarity(rarityKey);
 
+  // Pull sprite path + display name from shared DB
+  const pokeRow = await getPokemonRow(pokemonName);
+  const displayName = pokeRow?.display_name || pokemonName || 'None';
+  const spritePath = resolveSpritePath(pokeRow?.sprite_path);
+
   const canvas = createCanvas(CARD_WIDTH, CARD_HEIGHT);
   const ctx = canvas.getContext('2d');
 
-  // Background
+  // Background gradient
   const bg = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
   bg.addColorStop(0, style.gradientFrom);
   bg.addColorStop(1, style.gradientTo);
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 
-  ctx.fillStyle = 'rgba(0,0,0,0.20)';
+  // Dark overlay (match bounty)
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.20)';
   ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 
-  // Layout
+  // Layout: left text column (~60%), right image column (~40%)
   const totalInnerWidth = CARD_WIDTH - MARGIN * 3;
   const rightMaxWidth = totalInnerWidth * 0.4;
   const rightMaxHeight = CARD_HEIGHT - 2 * MARGIN;
@@ -132,82 +172,102 @@ async function createChallengeCard(options) {
   const leftHeight = CARD_HEIGHT - 2 * MARGIN;
 
   // ──────────────────────────────
-  // RIGHT IMAGE — Pokémon sprite (FROM SHARED DB)
+  // RIGHT IMAGE — Pokémon sprite (replaces profile picture)
   // ──────────────────────────────
   ctx.save();
-  roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
-  ctx.clip();
-
-  let spritePath = null;
-
-  try {
-    const p = await getPokemonByName(pokemonName);
-    if (p && p.enabled && p.sprite_path && fs.existsSync(p.sprite_path)) {
-      spritePath = p.sprite_path;
-    }
-  } catch (err) {
-    console.warn('⚠ Failed to fetch sprite from shared DB:', err.message);
-  }
-
   try {
     if (spritePath) {
       const img = await loadImage(spritePath);
-      const aspect = img.width / img.height;
 
-      let w = imageSize;
-      let h = imageSize;
+      const imgAspect = img.width / img.height;
+      let drawW = imageSize;
+      let drawH = imageSize;
 
-      if (aspect > 1) h = imageSize / aspect;
-      else w = imageSize * aspect;
+      if (imgAspect > 1) {
+        drawH = imageSize / imgAspect;
+      } else {
+        drawW = imageSize * imgAspect;
+      }
 
-      ctx.drawImage(
-        img,
-        rightX + (imageSize - w) / 2,
-        rightY + (imageSize - h) / 2,
-        w,
-        h
-      );
+      const cx = rightX + (imageSize - drawW) / 2;
+      const cy = rightY + (imageSize - drawH) / 2;
+
+      roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
+      ctx.clip();
+      ctx.drawImage(img, cx, cy, drawW, drawH);
+
+      ctx.restore();
+      ctx.save();
+      roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
+      ctx.lineWidth = 10;
+      ctx.strokeStyle = 'rgba(248, 250, 252, 0.9)';
+      ctx.stroke();
     } else {
+      // Fallback (match bounty no-image behavior)
+      roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
+      ctx.clip();
       ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
       ctx.fillRect(rightX, rightY, imageSize, imageSize);
+
+      ctx.font = 'bold 42px sans-serif';
+      ctx.fillStyle = '#e5e7eb';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('No Sprite', rightX + imageSize / 2, rightY + imageSize / 2);
+
+      ctx.restore();
+      ctx.save();
+      roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
+      ctx.lineWidth = 10;
+      ctx.strokeStyle = 'rgba(248, 250, 252, 0.9)';
+      ctx.stroke();
     }
   } catch {
+    ctx.restore();
+    ctx.save();
+    roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
+    ctx.clip();
     ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
     ctx.fillRect(rightX, rightY, imageSize, imageSize);
+
+    ctx.font = 'bold 42px sans-serif';
+    ctx.fillStyle = '#e5e7eb';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('No Sprite', rightX + imageSize / 2, rightY + imageSize / 2);
+
+    ctx.restore();
+    ctx.save();
+    roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = 'rgba(248, 250, 252, 0.9)';
+    ctx.stroke();
   }
-
-  ctx.restore();
-
-  ctx.save();
-  roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
-  ctx.lineWidth = 10;
-  ctx.strokeStyle = 'rgba(248, 250, 252, 0.9)';
-  ctx.stroke();
   ctx.restore();
 
   // ──────────────────────────────
-  // LEFT COLUMN (UNCHANGED)
+  // LEFT COLUMN: info + note boxes (stacked) — matches bounty layout
   // ──────────────────────────────
   const boxGap = 40;
   const FONT_SIZE = 55;
   const lineHeight = FONT_SIZE * 1.25;
   const groupSpacing = lineHeight * 0.7;
-
   const labelColor = '#facc15';
   const valueColor = '#f9fafb';
 
-  const infoRows = [
-    { label: 'Issued by:', value: issuedBy },
-    { label: 'Rank:', value: rankName },
-    { spacer: true },
-    { label: 'Target:', value: pokemonName || 'None' },
-    { label: 'Rarity:', value: rarityLabel },
-    { label: 'Points:', value: pointsLabel },
-    { spacer: true },
-    { label: 'Start time:', value: startLabel },
-    { label: 'Ends:', value: endLabel },
-    { label: 'Duration:', value: durationLabel }
-  ];
+  const infoRows = [];
+  infoRows.push({ label: 'Issued by:', value: issuedBy });
+  infoRows.push({ label: 'Rank:', value: rankName });
+  infoRows.push({ spacer: true });
+
+  infoRows.push({ label: 'Target:', value: displayName });
+  infoRows.push({ label: 'Rarity:', value: rarityLabel });
+  infoRows.push({ label: 'Points:', value: pointsLabel });
+  infoRows.push({ spacer: true });
+
+  infoRows.push({ label: 'Start time:', value: startLabel });
+  infoRows.push({ label: 'Ends:', value: endLabel });
+  infoRows.push({ label: 'Duration:', value: durationLabel });
 
   const nonSpacerRows = infoRows.filter(r => !r.spacer).length;
   const spacerCount = infoRows.filter(r => r.spacer).length;
@@ -217,22 +277,28 @@ async function createChallengeCard(options) {
   const notePaddingX = 50;
   const notePaddingY = 40;
 
-  ctx.font = `bold ${FONT_SIZE}px sans-serif`;
-
+  // Wrap note text first
   const noteText = note || 'Good luck!';
-  const noteLines = wrapText(ctx, noteText, leftWidth - notePaddingX * 2);
+  ctx.font = `bold ${FONT_SIZE}px sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+
+  const maxNoteTextWidth = leftWidth - notePaddingX * 2;
+  const noteLines = wrapText(ctx, noteText, maxNoteTextWidth);
   const noteTextHeight = noteLines.length * lineHeight;
 
-  const noteBoxHeight = Math.max(
-    notePaddingY * 2 + noteTextHeight,
-    notePaddingY * 2 + lineHeight * 2
+  const noteMinHeight = notePaddingY * 2 + lineHeight * 2;
+  const noteNeededHeight = notePaddingY * 2 + noteTextHeight;
+  const noteBoxHeight = Math.max(noteMinHeight, noteNeededHeight);
+
+  const infoTextHeight = nonSpacerRows * lineHeight + spacerCount * groupSpacing;
+  const infoNeededHeight = infoPaddingY * 2 + infoTextHeight;
+
+  const leftAvailableForInfo = leftHeight - boxGap - noteBoxHeight;
+  const infoBoxHeight = Math.max(
+    infoNeededHeight,
+    Math.min(leftAvailableForInfo, leftHeight * 0.9)
   );
-
-  const infoTextHeight =
-    nonSpacerRows * lineHeight + spacerCount * groupSpacing;
-
-  const infoBoxHeight =
-    infoPaddingY * 2 + infoTextHeight;
 
   const infoBoxX = leftX;
   const infoBoxY = leftY;
@@ -244,6 +310,7 @@ async function createChallengeCard(options) {
   const noteBoxW = leftWidth;
   const noteBoxH = leftHeight - infoBoxH - boxGap;
 
+  // Draw top info box
   ctx.save();
   roundedRectPath(ctx, infoBoxX, infoBoxY, infoBoxW, infoBoxH, 40);
   ctx.fillStyle = style.boxColor;
@@ -253,32 +320,44 @@ async function createChallengeCard(options) {
   ctx.stroke();
   ctx.restore();
 
+  // Compute label column width (match bounty)
+  ctx.font = `bold ${FONT_SIZE}px sans-serif`;
+  const labelsToMeasure = infoRows
+    .filter(r => !r.spacer && r.label)
+    .map(r => r.label);
+
   let maxLabelWidth = 0;
-  for (const r of infoRows) {
-    if (r.label) {
-      maxLabelWidth = Math.max(maxLabelWidth, ctx.measureText(r.label).width);
-    }
+  for (const lab of labelsToMeasure) {
+    const w = ctx.measureText(lab).width;
+    if (w > maxLabelWidth) maxLabelWidth = w;
   }
 
+  const labelGap = 50;
   const labelX = infoBoxX + infoPaddingX;
-  const valueX = labelX + maxLabelWidth + 50;
+  const valueX = labelX + maxLabelWidth + labelGap;
 
-  let y = infoBoxY + (infoBoxH - infoTextHeight) / 2;
+  // Vertically centre text inside top info box
+  const infoTextTotalHeight = nonSpacerRows * lineHeight + spacerCount * groupSpacing;
+  const centeredStartY = infoBoxY + (infoBoxH - infoTextTotalHeight) / 2;
+  let currentY = centeredStartY;
 
   for (const row of infoRows) {
     if (row.spacer) {
-      y += groupSpacing;
+      currentY += groupSpacing;
       continue;
     }
+
     ctx.fillStyle = labelColor;
-    ctx.fillText(row.label, labelX, y);
+    ctx.font = `bold ${FONT_SIZE}px sans-serif`;
+    ctx.fillText(row.label, labelX, currentY);
 
     ctx.fillStyle = valueColor;
-    ctx.fillText(row.value || '', valueX, y);
+    ctx.fillText(row.value || '', valueX, currentY);
 
-    y += lineHeight;
+    currentY += lineHeight;
   }
 
+  // Draw note box
   ctx.save();
   roundedRectPath(ctx, noteBoxX, noteBoxY, noteBoxW, noteBoxH, 40);
   ctx.fillStyle = style.boxColor;
@@ -288,18 +367,22 @@ async function createChallengeCard(options) {
   ctx.stroke();
   ctx.restore();
 
-  let ny = noteBoxY + (noteBoxH - noteTextHeight) / 2;
+  // Note text
+  ctx.font = `bold ${FONT_SIZE}px sans-serif`;
+  ctx.fillStyle = valueColor;
+  ctx.textAlign = 'left';
+
+  const totalNoteTextHeight = noteLines.length * lineHeight;
+  let noteStartY = noteBoxY + (noteBoxH - totalNoteTextHeight) / 2;
+
   for (const line of noteLines) {
-    ctx.fillStyle = valueColor;
-    ctx.fillText(line, noteBoxX + notePaddingX, ny);
-    ny += lineHeight;
+    ctx.fillText(line, noteBoxX + notePaddingX, noteStartY);
+    noteStartY += lineHeight;
   }
 
   const buffer = canvas.toBuffer('image/png');
-  fs.writeFileSync(
-    path.join(CARDS_DIR, `challenge_${challengeId}.png`),
-    buffer
-  );
+  const filePath = path.join(CARDS_DIR, `challenge_${challengeId}.png`);
+  fs.writeFileSync(filePath, buffer);
 
   return buffer;
 }
