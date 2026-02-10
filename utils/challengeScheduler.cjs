@@ -6,6 +6,7 @@ const {
 
 const db = require('../database.cjs');
 const { createChallengeCard } = require('../renderers/challengeCard.cjs');
+const { getPokemonByKey, getPokemonByName } = require('./sharedPokemon.cjs');
 
 /* -----------------------------------------------------------
  * Role → Rank mapping (LOCKED)
@@ -39,10 +40,43 @@ function roundToEndOfHour(ts) {
 }
 
 /* -----------------------------------------------------------
+ * Points mapping (LOCKED)
+ * ----------------------------------------------------------- */
+function pointsForRarity(rarity) {
+  switch (rarity) {
+    case 'common':
+      return 1;
+
+    case 'rare':
+    case 'legendary':
+    case 'starter':
+      return 20;
+
+    case 'roamerMonth':
+      return 30;
+
+    case 'paradox':
+      return 100;
+
+    default:
+      return 0;
+  }
+}
+
+/* -----------------------------------------------------------
  * Normalize DB row → camelCase
  * ----------------------------------------------------------- */
 function normalize(ch) {
   if (!ch) return null;
+
+  const pokemon =
+    typeof ch.pokemon === 'string'
+      ? ch.pokemon
+      : Array.isArray(ch.pokemons)
+      ? ch.pokemons[0]
+      : ch.pokemons_json
+      ? JSON.parse(ch.pokemons_json)[0]
+      : null;
 
   return {
     id: ch.id,
@@ -50,27 +84,32 @@ function normalize(ch) {
     issuerId: ch.issuer_id || ch.issuerId,
     issuerName: ch.issuer_name || ch.issuerName,
 
-    pokemon:
-      typeof ch.pokemon === 'string'
-        ? ch.pokemon
-        : Array.isArray(ch.pokemons)
-        ? ch.pokemons[0]
-        : ch.pokemons_json
-        ? JSON.parse(ch.pokemons_json)[0]
-        : null,
-
+    pokemon,
     notes: ch.notes,
+
     startTime: ch.start_time || ch.startTime,
     endTime: ch.end_time || ch.endTime,
 
-    rarityKey: ch.rarity_key || ch.rarityKey,
-    rarityLabel: ch.rarity_label || ch.rarityLabel,
-    points: ch.points,
-
     status: ch.status,
+
     cardChannelId: ch.card_channel_id || ch.cardChannelId,
     cardMessageId: ch.card_message_id || ch.cardMessageId
   };
+}
+
+/* -----------------------------------------------------------
+ * Resolve Pokémon from shared DB
+ * ----------------------------------------------------------- */
+async function resolvePokemon(pokemonNameOrKey) {
+  if (!pokemonNameOrKey) return null;
+
+  // Try key first
+  let row = await getPokemonByKey(pokemonNameOrKey).catch(() => null);
+  if (row) return row;
+
+  // Fallback to display name
+  row = await getPokemonByName(pokemonNameOrKey).catch(() => null);
+  return row || null;
 }
 
 /* -----------------------------------------------------------
@@ -105,23 +144,31 @@ async function postChallengeCard(client, raw) {
 
   const rankName = getRankFromMember(member);
 
-  const startLabel = new Date(challenge.startTime)
-    .toLocaleString('en-GB');
+  const startLabel = new Date(challenge.startTime).toLocaleString('en-GB');
 
   const roundedEnd = roundToEndOfHour(challenge.endTime);
-  const endLabel = new Date(roundedEnd)
-    .toLocaleString('en-GB');
+  const endLabel = new Date(roundedEnd).toLocaleString('en-GB');
 
   const durationLabel = 'Until end of hour';
-  const pointsLabel = `${challenge.points} points`;
+
+  // ──────────────────────────────
+  // Pokémon → rarity → points
+  // ──────────────────────────────
+  const pokemonRow = await resolvePokemon(challenge.pokemon);
+
+  const rarityKey = pokemonRow?.rarity || 'common';
+  const rarityLabel = pokemonRow?.rarity || 'Common';
+
+  const points = pointsForRarity(rarityKey);
+  const pointsLabel = `${points} point${points === 1 ? '' : 's'}`;
 
   const buffer = await createChallengeCard({
     challengeId: challenge.id,
     issuedBy,
     rankName,
-    rarityKey: challenge.rarityKey,
-    rarityLabel: challenge.rarityLabel,
-    pokemonName: challenge.pokemon,
+    rarityKey,
+    rarityLabel,
+    pokemonName: pokemonRow?.display_name || challenge.pokemon,
     startLabel,
     endLabel,
     durationLabel,
@@ -137,12 +184,7 @@ async function postChallengeCard(client, raw) {
   );
 
   const msg = await channel.send({
-    files: [
-      {
-        attachment: buffer,
-        name: `challenge_${challenge.id}.png`
-      }
-    ],
+    files: [{ attachment: buffer, name: `challenge_${challenge.id}.png` }],
     components: [row]
   });
 
@@ -164,9 +206,7 @@ function startChallengeScheduler(client) {
     const now = Date.now();
 
     try {
-      /* ----------------------------
-       * Start scheduled challenges
-       * ---------------------------- */
+      // Start scheduled challenges
       const toStart = await db.getChallengesToStart(now);
 
       for (const raw of toStart) {
@@ -176,15 +216,12 @@ function startChallengeScheduler(client) {
 
           await postChallengeCard(client, challenge);
           await db.updateChallenge(challenge.id, { status: 'open' });
-
         } catch (err) {
           console.error('❌ Error starting challenge:', err);
         }
       }
 
-      /* ----------------------------
-       * Expire challenges (delete active card)
-       * ---------------------------- */
+      // Expire challenges (delete active card)
       const toExpire = await db.getChallengesToExpire(now);
 
       for (const raw of toExpire) {
@@ -204,12 +241,10 @@ function startChallengeScheduler(client) {
           }
 
           await db.updateChallenge(challenge.id, { status: 'expired' });
-
         } catch (err) {
           console.error('❌ Error expiring challenge:', err);
         }
       }
-
     } catch (err) {
       console.error('❌ Challenge scheduler tick failed:', err);
     }
