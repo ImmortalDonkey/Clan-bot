@@ -1,7 +1,7 @@
 // utils/sharedPokemonDb.cjs
 const path = require('path');
 const fs = require('fs');
-const Database = require('better-sqlite3');
+const sqlite3 = require('sqlite3');
 
 // Absolute path to shared DB
 const SHARED_DB_PATH = path.resolve(
@@ -9,80 +9,93 @@ const SHARED_DB_PATH = path.resolve(
   'shared.db'
 );
 
-// Sanity check early
 if (!fs.existsSync(SHARED_DB_PATH)) {
   throw new Error(`❌ Shared Pokémon DB not found at ${SHARED_DB_PATH}`);
 }
 
-// Open read-only connection
-const db = new Database(SHARED_DB_PATH, {
-  readonly: true,
-  fileMustExist: true
-});
+// Open READ-ONLY connection
+const db = new sqlite3.Database(
+  SHARED_DB_PATH,
+  sqlite3.OPEN_READONLY,
+  err => {
+    if (err) {
+      console.error('❌ Failed to open shared Pokémon DB:', err);
+    } else {
+      console.log('✅ Shared Pokémon DB connected');
+    }
+  }
+);
+
+/* --------------------------------------------------
+ * Low-level helpers (match your style)
+ * -------------------------------------------------- */
+function get(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => {
+      if (err) return reject(err);
+      resolve(row || null);
+    });
+  });
+}
+
+/* --------------------------------------------------
+ * Public API
+ * -------------------------------------------------- */
 
 /**
- * Get a Pokémon row by pokemon_key
+ * Get enabled Pokémon row by key
  * @param {string} pokemonKey
- * @returns {object|null}
  */
-function getPokemonByKey(pokemonKey) {
+async function getPokemonByKey(pokemonKey) {
   if (!pokemonKey) return null;
 
-  const row = db
-    .prepare(
-      `
-      SELECT
-        pokemon_key,
-        display_name,
-        rarity,
-        sprite_path
-      FROM shared_pokemon
-      WHERE pokemon_key = ?
-        AND enabled = 1
-      LIMIT 1
-      `
-    )
-    .get(pokemonKey.toLowerCase());
-
-  return row || null;
+  return await get(
+    `
+    SELECT
+      pokemon_key,
+      display_name,
+      rarity,
+      sprite_path
+    FROM shared_pokemon
+    WHERE pokemon_key = ?
+      AND enabled = 1
+    LIMIT 1
+    `,
+    [pokemonKey.toLowerCase()]
+  );
 }
 
 /**
- * Resolve absolute sprite path for a Pokémon
+ * Resolve absolute sprite path
  * @param {string} pokemonKey
- * @returns {string|null}
  */
-function getPokemonSpritePath(pokemonKey) {
-  const row = getPokemonByKey(pokemonKey);
+async function getPokemonSpritePath(pokemonKey) {
+  const row = await getPokemonByKey(pokemonKey);
   if (!row || !row.sprite_path) return null;
 
-  // If path is already absolute, trust it
+  // Absolute path stored
   if (path.isAbsolute(row.sprite_path)) {
     return fs.existsSync(row.sprite_path) ? row.sprite_path : null;
   }
 
-  // Otherwise resolve relative to project root
+  // Relative path → resolve from project root
   const resolved = path.resolve(process.cwd(), row.sprite_path);
   return fs.existsSync(resolved) ? resolved : null;
 }
 
 /**
- * Get display-safe Pokémon name
- * @param {string} pokemonKey
- * @returns {string|null}
+ * Display name helper
  */
-function getPokemonDisplayName(pokemonKey) {
-  const row = getPokemonByKey(pokemonKey);
+async function getPokemonDisplayName(pokemonKey) {
+  const row = await getPokemonByKey(pokemonKey);
   return row ? row.display_name : null;
 }
 
 /**
- * Get rarity key (as stored)
- * @param {string} pokemonKey
- * @returns {string|null}
+ * Rarity helper
  */
-function getPokemonRarity(pokemonKey) {
-  const row = getPokemonByKey(pokemonKey);
+async function getPokemonRarity(pokemonKey) {
+  const row = await getPokemonByKey(pokemonKey);
   return row ? row.rarity : null;
 }
 
