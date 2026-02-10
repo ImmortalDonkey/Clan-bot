@@ -2,20 +2,21 @@ const fs = require('fs');
 const path = require('path');
 const { createCanvas, loadImage } = require('canvas');
 
+// 🔗 Shared Pokémon helper
+const { getPokemonByName } = require('../utils/sharedPokemon.cjs');
+
 const CARD_WIDTH = 2200;
 const CARD_HEIGHT = 1300;
 const MARGIN = 40;
 
 // Output directory
 const CARDS_DIR = path.join(__dirname, 'card-images');
-// Sprites directory (shared Pokémon sprites)
-const SPRITES_DIR = path.join(__dirname, '..', 'sprites');
 
 if (!fs.existsSync(CARDS_DIR)) {
   fs.mkdirSync(CARDS_DIR, { recursive: true });
 }
 
-// Rarity styles (unchanged from bounty)
+// Rarity styles (unchanged)
 const rarityStyles = {
   paradox: {
     gradientFrom: '#3b82f6',
@@ -83,27 +84,22 @@ function wrapText(ctx, text, maxWidth) {
   return lines.length ? lines : [''];
 }
 
-function getSpritePath(pokemonName) {
-  if (!pokemonName) return null;
-  return path.join(SPRITES_DIR, `${pokemonName}.png`);
-}
-
 /**
  * ACTIVE challenge card renderer
  */
 async function createChallengeCard(options) {
   const {
     challengeId,
-    issuedBy,        // username string
-    rankName,        // role-based rank
+    issuedBy,
+    rankName,
     rarityKey,
     rarityLabel,
-    pokemonName,     // SINGLE Pokémon
+    pokemonName,
     startLabel,
     endLabel,
     durationLabel,
     note,
-    pointsLabel      // e.g. "5 points"
+    pointsLabel
   } = options;
 
   const style = getStyleForRarity(rarityKey);
@@ -111,14 +107,13 @@ async function createChallengeCard(options) {
   const canvas = createCanvas(CARD_WIDTH, CARD_HEIGHT);
   const ctx = canvas.getContext('2d');
 
-  // Background gradient
+  // Background
   const bg = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
   bg.addColorStop(0, style.gradientFrom);
   bg.addColorStop(1, style.gradientTo);
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 
-  // Dark overlay
   ctx.fillStyle = 'rgba(0,0,0,0.20)';
   ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 
@@ -137,15 +132,25 @@ async function createChallengeCard(options) {
   const leftHeight = CARD_HEIGHT - 2 * MARGIN;
 
   // ──────────────────────────────
-  // RIGHT IMAGE — Pokémon sprite
+  // RIGHT IMAGE — Pokémon sprite (FROM SHARED DB)
   // ──────────────────────────────
   ctx.save();
   roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
   ctx.clip();
 
-  const spritePath = getSpritePath(pokemonName);
+  let spritePath = null;
+
   try {
-    if (spritePath && fs.existsSync(spritePath)) {
+    const p = await getPokemonByName(pokemonName);
+    if (p && p.enabled && p.sprite_path && fs.existsSync(p.sprite_path)) {
+      spritePath = p.sprite_path;
+    }
+  } catch (err) {
+    console.warn('⚠ Failed to fetch sprite from shared DB:', err.message);
+  }
+
+  try {
+    if (spritePath) {
       const img = await loadImage(spritePath);
       const aspect = img.width / img.height;
 
@@ -181,7 +186,7 @@ async function createChallengeCard(options) {
   ctx.restore();
 
   // ──────────────────────────────
-  // LEFT COLUMN
+  // LEFT COLUMN (UNCHANGED)
   // ──────────────────────────────
   const boxGap = 40;
   const FONT_SIZE = 55;
@@ -239,7 +244,6 @@ async function createChallengeCard(options) {
   const noteBoxW = leftWidth;
   const noteBoxH = leftHeight - infoBoxH - boxGap;
 
-  // Info box
   ctx.save();
   roundedRectPath(ctx, infoBoxX, infoBoxY, infoBoxW, infoBoxH, 40);
   ctx.fillStyle = style.boxColor;
@@ -249,7 +253,6 @@ async function createChallengeCard(options) {
   ctx.stroke();
   ctx.restore();
 
-  // Measure label width
   let maxLabelWidth = 0;
   for (const r of infoRows) {
     if (r.label) {
@@ -276,7 +279,6 @@ async function createChallengeCard(options) {
     y += lineHeight;
   }
 
-  // Note box
   ctx.save();
   roundedRectPath(ctx, noteBoxX, noteBoxY, noteBoxW, noteBoxH, 40);
   ctx.fillStyle = style.boxColor;
