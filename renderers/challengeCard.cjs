@@ -21,7 +21,7 @@ if (!fs.existsSync(CARDS_DIR)) {
   fs.mkdirSync(CARDS_DIR, { recursive: true });
 }
 
-// Rarity styles
+// Rarity styles (match bounty)
 const rarityStyles = {
   paradox: {
     gradientFrom: '#3b82f6',
@@ -54,6 +54,7 @@ function getStyleForRarity(key) {
   return rarityStyles[key] || rarityStyles.common;
 }
 
+// Pokémon colour
 const rarityTextColors = {
   common: '#ffffff',
   rare: '#60a5fa',
@@ -75,7 +76,7 @@ function themeForRank(rankName) {
 }
 
 /* ────────────────────────────── */
-/* HELPERS                        */
+/* HELPERS                       */
 /* ────────────────────────────── */
 
 function roundedRectPath(ctx, x, y, w, h, r) {
@@ -107,6 +108,7 @@ function wrapPlainText(ctx, text, maxWidth) {
       line = test;
     }
   }
+
   if (line) lines.push(line);
   return lines.length ? lines : [''];
 }
@@ -123,7 +125,10 @@ function wrapStyledTokens(ctx, tokens, maxWidth) {
   };
 
   for (const t of tokens) {
-    const parts = String(t.text || '').split(/(\s+)/).filter(Boolean);
+    const parts = String(t.text || '')
+      .split(/(\s+)/)
+      .filter(Boolean);
+
     for (const part of parts) {
       const w = ctx.measureText(part).width;
       if (width + w > maxWidth && current.length) pushLine();
@@ -140,8 +145,8 @@ function drawPiece(ctx, text, x, y, kind, theme) {
   ctx.textBaseline = 'top';
 
   if (kind === 'issuer') {
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
     ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
     ctx.strokeText(text, x, y);
     ctx.fillStyle = theme.issuerColor;
     ctx.fillText(text, x, y);
@@ -149,8 +154,8 @@ function drawPiece(ctx, text, x, y, kind, theme) {
   }
 
   if (kind === 'pokemon') {
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
     ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
     ctx.strokeText(text, x, y);
     ctx.fillStyle = theme.pokemonColor;
     ctx.fillText(text, x, y);
@@ -176,7 +181,10 @@ function drawPiece(ctx, text, x, y, kind, theme) {
 
 function resolveSpritePath(spritePath) {
   if (!spritePath) return null;
-  if (path.isAbsolute(spritePath)) return fs.existsSync(spritePath) ? spritePath : null;
+
+  if (path.isAbsolute(spritePath)) {
+    return fs.existsSync(spritePath) ? spritePath : null;
+  }
 
   const p1 = path.resolve('/home/pi/shared-data', spritePath);
   if (fs.existsSync(p1)) return p1;
@@ -193,13 +201,8 @@ async function getPokemonRow(pokemonNameOrKey) {
   return await getPokemonByName(pokemonNameOrKey).catch(() => null);
 }
 
-function cleanDurationForSentence(durationLabel) {
-  if (/end of hour/i.test(durationLabel)) return '1 hour';
-  return durationLabel?.replace(/^until\s+/i, '') || 'the time limit';
-}
-
 /* ────────────────────────────── */
-/* MAIN                           */
+/* MAIN                          */
 /* ────────────────────────────── */
 
 async function createChallengeCard(options) {
@@ -208,7 +211,6 @@ async function createChallengeCard(options) {
     issuedBy,
     rankName,
     rarityKey,
-    rarityLabel,
     pokemonName,
     startLabel,
     endLabel,
@@ -219,7 +221,7 @@ async function createChallengeCard(options) {
   } = options;
 
   const pokeRow = await getPokemonRow(pokemonName);
-  const displayName = pokeRow?.display_name || pokemonName;
+  const displayName = pokeRow?.display_name || pokemonName || 'Pokémon';
   const spritePath = resolveSpritePath(pokeRow?.sprite_path);
 
   const effectiveRarityKey = pokeRow?.rarity || rarityKey || 'common';
@@ -229,33 +231,23 @@ async function createChallengeCard(options) {
   const canvas = createCanvas(CARD_WIDTH, CARD_HEIGHT);
   const ctx = canvas.getContext('2d');
 
-  // Outer clip
   ctx.save();
   roundedRectPath(ctx, EDGE / 2, EDGE / 2, CARD_WIDTH - EDGE, CARD_HEIGHT - EDGE, EDGE_RADIUS);
   ctx.clip();
 
-  // Background
-  if (backgroundPath && fs.existsSync(backgroundPath)) {
-    const bg = await loadImage(backgroundPath);
-    ctx.drawImage(bg, 0, 0, CARD_WIDTH, CARD_HEIGHT);
-  } else {
-    const bg = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
-    bg.addColorStop(0, style.gradientFrom);
-    bg.addColorStop(1, style.gradientTo);
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
-  }
+  const bg = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
+  bg.addColorStop(0, style.gradientFrom);
+  bg.addColorStop(1, style.gradientTo);
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 
-  // Layout
   const totalInnerWidth = CARD_WIDTH - MARGIN * 3;
-  const rightW = totalInnerWidth * 0.4;
-  const imageSize = Math.min(rightW, CARD_HEIGHT - 2 * MARGIN);
+  const imageSize = Math.min(totalInnerWidth * 0.4, CARD_HEIGHT - 2 * MARGIN);
   const rightX = CARD_WIDTH - MARGIN - imageSize;
   const rightY = MARGIN + ((CARD_HEIGHT - 2 * MARGIN - imageSize) / 2);
 
-  // Sprite
   ctx.save();
   roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
   ctx.clip();
@@ -263,35 +255,34 @@ async function createChallengeCard(options) {
   if (spritePath) {
     const img = await loadImage(spritePath);
     const scale = Math.min(imageSize / img.width, imageSize / img.height);
-    const w = img.width * scale;
-    const h = img.height * scale;
-    ctx.drawImage(img, rightX + (imageSize - w) / 2, rightY + (imageSize - h) / 2, w, h);
+    ctx.drawImage(
+      img,
+      rightX + (imageSize - img.width * scale) / 2,
+      rightY + (imageSize - img.height * scale) / 2,
+      img.width * scale,
+      img.height * scale
+    );
   }
-
   ctx.restore();
 
-  // LEFT COLUMN
   const leftX = MARGIN;
-  const leftW = rightX - leftX - MARGIN;
-  const FONT = 55;
-  const lineHeight = FONT * 1.25;
+  const leftWidth = rightX - leftX - MARGIN;
+  const FONT_SIZE = 55;
+  const lineHeight = FONT_SIZE * 1.25;
 
-  ctx.font = `bold ${FONT}px sans-serif`;
+  ctx.font = `bold ${FONT_SIZE}px sans-serif`;
 
   const narrativeTokens = [
     { kind: 'issuer', text: issuedBy },
     { kind: 'normal', text: ' has issued a new challenge. Catch a ' },
     { kind: 'pokemon', text: displayName },
     { kind: 'normal', text: ' within ' },
-    { kind: 'duration', text: cleanDurationForSentence(durationLabel) },
+    { kind: 'duration', text: durationLabel },
     { kind: 'normal', text: '.' }
   ];
 
-  const narrativeLines = wrapStyledTokens(ctx, narrativeTokens, leftW - 110);
-
-  let y = MARGIN + 60;
-
-  for (const line of narrativeLines) {
+  let y = MARGIN + 80;
+  for (const line of wrapStyledTokens(ctx, narrativeTokens, leftWidth - 110)) {
     let x = leftX + 55;
     for (const p of line) {
       drawPiece(ctx, p.text, x, y, p.kind, {
@@ -306,48 +297,25 @@ async function createChallengeCard(options) {
 
   y += lineHeight * 0.8;
 
-  // META (NO rank / rarity)
   ctx.fillStyle = '#facc15';
   ctx.fillText('Reward:', leftX + 55, y);
-  ctx.fillStyle = '#fff';
+  ctx.fillStyle = '#ffffff';
   ctx.fillText(pointsLabel, leftX + 300, y);
   y += lineHeight * 1.4;
 
   ctx.fillStyle = '#facc15';
   ctx.fillText('Start time:', leftX + 55, y);
-  ctx.fillStyle = '#fff';
+  ctx.fillStyle = '#ffffff';
   ctx.fillText(startLabel, leftX + 300, y);
   y += lineHeight;
 
   ctx.fillStyle = '#facc15';
   ctx.fillText('End time:', leftX + 55, y);
-  ctx.fillStyle = '#fff';
+  ctx.fillStyle = '#ffffff';
   ctx.fillText(endLabel, leftX + 300, y);
 
-  // NOTE BOX (2 lines max)
-  const rawNoteLines = wrapPlainText(ctx, note || 'Good luck!', leftW - 110);
-  const noteLines = rawNoteLines.slice(0, 2);
-
-  let noteY = CARD_HEIGHT - MARGIN - (lineHeight * 2) - 60;
-
-  ctx.save();
-  roundedRectPath(ctx, leftX, noteY - 30, leftW, lineHeight * 2 + 60, 40);
-  ctx.fillStyle = style.boxColor;
-  ctx.fill();
-  ctx.lineWidth = 20;
-  ctx.strokeStyle = rankTheme.outline;
-  ctx.stroke();
   ctx.restore();
 
-  ctx.fillStyle = '#fff';
-  let ty = noteY;
-  for (const l of noteLines) {
-    ctx.fillText(l, leftX + 55, ty);
-    ty += lineHeight;
-  }
-
-  // Outer border
-  ctx.restore();
   ctx.save();
   roundedRectPath(ctx, EDGE / 2, EDGE / 2, CARD_WIDTH - EDGE, CARD_HEIGHT - EDGE, EDGE_RADIUS);
   ctx.lineWidth = EDGE;
