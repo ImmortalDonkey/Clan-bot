@@ -217,16 +217,21 @@ async function getPokemonRow(pokemonNameOrKey) {
   return row || null;
 }
 
-// Make narrative duration read cleanly
+// Option A: duration comes from command (durationLabel must be correct)
 function cleanDurationForSentence(durationLabel) {
   const raw = String(durationLabel || '').trim();
   if (!raw) return 'the time limit';
 
-  // Old label "Until end of hour" → sentence should be "1 hour"
+  // Legacy support only (old scheduler wording)
   if (/end of hour/i.test(raw)) return '1 hour';
 
   // Strip leading "Until "
-  return raw.replace(/^until\s+/i, '');
+  const cleaned = raw.replace(/^until\s+/i, '').trim();
+
+  // If the command passes just a number (e.g. "10"), normalise to "10 hours"
+  if (/^\d+$/.test(cleaned)) return `${cleaned} hours`;
+
+  return cleaned;
 }
 
 /**
@@ -385,6 +390,7 @@ async function createChallengeCard(options) {
   const notePaddingY = 40;
 
   // ───────── Narrative paragraph (styled + wrapped) ─────────
+  // STRICT: Two sentences, wrapped separately
   ctx.font = `bold ${FONT_SIZE}px sans-serif`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
@@ -392,9 +398,14 @@ async function createChallengeCard(options) {
   const contentW = leftWidth - infoPaddingX * 2;
   const cleanDur = cleanDurationForSentence(durationLabel);
 
-  const narrativeTokens = [
+  // Sentence 1 (must end with "!")
+  const s1Tokens = [
     { kind: 'issuer', text: String(issuedBy || 'Someone') },
-    { kind: 'normal', text: ' has issued a new challenge. ' },
+    { kind: 'normal', text: ' has issued a new challenge!' }
+  ];
+
+  // Sentence 2 (duration must come from command)
+  const s2Tokens = [
     { kind: 'normal', text: 'Catch a ' },
     { kind: 'pokemon', text: String(displayName || 'Pokémon') },
     { kind: 'normal', text: ' within ' },
@@ -402,8 +413,14 @@ async function createChallengeCard(options) {
     { kind: 'normal', text: '.' }
   ];
 
-  const narrativeLines = wrapStyledTokens(ctx, narrativeTokens, contentW);
-  const narrativeHeight = narrativeLines.length * lineHeight;
+  const s1Lines = wrapStyledTokens(ctx, s1Tokens, contentW);
+  const s2Lines = wrapStyledTokens(ctx, s2Tokens, contentW);
+
+  const sentenceGap = lineHeight * 0.35;
+  const narrativeHeight =
+    (s1Lines.length * lineHeight) +
+    sentenceGap +
+    (s2Lines.length * lineHeight);
 
   // ───────── Meta rows (STRICT PATCH) ─────────
   // Removed Rank + Rarity rows
@@ -494,8 +511,20 @@ async function createChallengeCard(options) {
     lineHeight
   };
 
-  // Narrative lines
-  for (const line of narrativeLines) {
+  // Sentence 1
+  for (const line of s1Lines) {
+    let x = labelX;
+    for (const piece of line) {
+      drawPiece(ctx, piece.text, x, cursorY, piece.kind, drawTheme);
+      x += ctx.measureText(piece.text).width;
+    }
+    cursorY += lineHeight;
+  }
+
+  cursorY += sentenceGap;
+
+  // Sentence 2
+  for (const line of s2Lines) {
     let x = labelX;
     for (const piece of line) {
       drawPiece(ctx, piece.text, x, cursorY, piece.kind, drawTheme);
