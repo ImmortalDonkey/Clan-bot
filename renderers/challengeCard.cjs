@@ -7,54 +7,26 @@ const { getPokemonByKey, getPokemonByName } = require('../utils/sharedPokemon.cj
 const CARD_WIDTH = 2200;
 const CARD_HEIGHT = 1300;
 
-// ───────── OUTER EDGE CONFIG (copied from report card) ─────────
+// ───────── OUTER EDGE CONFIG ─────────
 const EDGE = 26;
 const EDGE_RADIUS = EDGE * 4.6;
-
-// Increased padding to create more space to the outer border
 const MARGIN = 80;
 
 // Output directory
 const CARDS_DIR = path.join(__dirname, 'card-images');
-
 if (!fs.existsSync(CARDS_DIR)) {
   fs.mkdirSync(CARDS_DIR, { recursive: true });
 }
 
-// Rarity styles (match bounty)
+// ───────── STYLES ─────────
 const rarityStyles = {
-  paradox: {
-    gradientFrom: '#3b82f6',
-    gradientTo: '#a855f7',
-    boxColor: 'rgba(15, 23, 42, 0.95)'
-  },
-  roamerMonth: {
-    gradientFrom: '#f97316',
-    gradientTo: '#ec4899',
-    boxColor: 'rgba(17, 24, 39, 0.95)'
-  },
-  legendary: {
-    gradientFrom: '#1d4ed8',
-    gradientTo: '#22d3ee',
-    boxColor: 'rgba(15, 23, 42, 0.95)'
-  },
-  rare: {
-    gradientFrom: '#1d4ed8',
-    gradientTo: '#22d3ee',
-    boxColor: 'rgba(15, 23, 42, 0.95)'
-  },
-  common: {
-    gradientFrom: '#16a34a',
-    gradientTo: '#0f766e',
-    boxColor: 'rgba(5, 46, 22, 0.95)'
-  }
+  paradox: { gradientFrom: '#3b82f6', gradientTo: '#a855f7', boxColor: 'rgba(15,23,42,0.95)' },
+  roamerMonth: { gradientFrom: '#f97316', gradientTo: '#ec4899', boxColor: 'rgba(17,24,39,0.95)' },
+  legendary: { gradientFrom: '#1d4ed8', gradientTo: '#22d3ee', boxColor: 'rgba(15,23,42,0.95)' },
+  rare: { gradientFrom: '#1d4ed8', gradientTo: '#22d3ee', boxColor: 'rgba(15,23,42,0.95)' },
+  common: { gradientFrom: '#16a34a', gradientTo: '#0f766e', boxColor: 'rgba(5,46,22,0.95)' }
 };
 
-function getStyleForRarity(key) {
-  return rarityStyles[key] || rarityStyles.common;
-}
-
-// Pokémon colour (copied concept from report card)
 const rarityTextColors = {
   common: '#ffffff',
   rare: '#60a5fa',
@@ -63,22 +35,22 @@ const rarityTextColors = {
   paradox: '#fde047'
 };
 
-// Rank → outline + name colour (RED SHADES, one per rank)
 const RANK_THEME = {
-  Member: { outline: '#ef4444', name: '#ef4444' },     // red
-  Elite: { outline: '#dc2626', name: '#dc2626' },      // deeper red
-  'Co-Leader': { outline: '#b91c1c', name: '#b91c1c' },// dark red
-  Leader: { outline: '#991b1b', name: '#991b1b' }      // darkest red
+  Member: { outline: '#ef4444', name: '#ef4444' },
+  Elite: { outline: '#dc2626', name: '#dc2626' },
+  'Co-Leader': { outline: '#b91c1c', name: '#b91c1c' },
+  Leader: { outline: '#991b1b', name: '#991b1b' }
 };
 
-function themeForRank(rankName) {
-  return RANK_THEME[rankName] || RANK_THEME.Member;
+function getStyleForRarity(key) {
+  return rarityStyles[key] || rarityStyles.common;
 }
 
-/* ────────────────────────────── */
-/* HELPERS (from report card)     */
-/* ────────────────────────────── */
+function themeForRank(rank) {
+  return RANK_THEME[rank] || RANK_THEME.Member;
+}
 
+// ───────── HELPERS ─────────
 function roundedRectPath(ctx, x, y, w, h, r) {
   const radius = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
@@ -98,7 +70,6 @@ function wrapPlainText(ctx, text, maxWidth) {
   const words = String(text || '').split(/\s+/);
   const lines = [];
   let line = '';
-
   for (const w of words) {
     const test = line ? `${line} ${w}` : w;
     if (ctx.measureText(test).width > maxWidth && line) {
@@ -109,7 +80,7 @@ function wrapPlainText(ctx, text, maxWidth) {
     }
   }
   if (line) lines.push(line);
-  return lines.length ? lines : [''];
+  return lines;
 }
 
 function wrapStyledTokens(ctx, tokens, maxWidth) {
@@ -117,121 +88,59 @@ function wrapStyledTokens(ctx, tokens, maxWidth) {
   let current = [];
   let width = 0;
 
-  const pushLine = () => {
+  const push = () => {
     if (current.length) lines.push(current);
     current = [];
     width = 0;
   };
 
   for (const t of tokens) {
-    const parts = String(t.text || '')
-      .split(/(\s+)/)
-      .filter(Boolean);
-
-    for (const part of parts) {
-      const w = ctx.measureText(part).width;
-      if (width + w > maxWidth && current.length) pushLine();
-      current.push({ text: part, kind: t.kind });
+    const parts = t.text.split(/(\s+)/).filter(Boolean);
+    for (const p of parts) {
+      const w = ctx.measureText(p).width;
+      if (width + w > maxWidth && current.length) push();
+      current.push({ text: p, kind: t.kind });
       width += w;
     }
   }
-
-  pushLine();
+  push();
   return lines;
 }
 
 function drawPiece(ctx, text, x, y, kind, theme) {
-  ctx.shadowBlur = 0;
-  ctx.shadowColor = 'transparent';
   ctx.textBaseline = 'top';
-
   if (kind === 'issuer') {
-    ctx.save();
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-    ctx.strokeText(text, x, y);
     ctx.fillStyle = theme.issuerColor;
     ctx.fillText(text, x, y);
-    ctx.restore();
     return;
   }
-
   if (kind === 'pokemon') {
-    ctx.save();
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-    ctx.strokeText(text, x, y);
     ctx.fillStyle = theme.pokemonColor;
     ctx.fillText(text, x, y);
-    ctx.restore();
     return;
   }
-
   if (kind === 'duration') {
-    // white text + underline
-    ctx.save();
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#fff';
     ctx.fillText(text, x, y);
-
     const w = ctx.measureText(text).width;
-    const underlineY = y + theme.lineHeight - 10;
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = '#ffffff';
     ctx.beginPath();
-    ctx.moveTo(x, underlineY);
-    ctx.lineTo(x + w, underlineY);
+    ctx.moveTo(x, y + theme.lineHeight - 8);
+    ctx.lineTo(x + w, y + theme.lineHeight - 8);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 5;
     ctx.stroke();
-    ctx.restore();
     return;
   }
-
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = '#fff';
   ctx.fillText(text, x, y);
 }
 
-// Resolve sprite path coming from shared DB
-function resolveSpritePath(spritePath) {
-  if (!spritePath) return null;
-
-  if (path.isAbsolute(spritePath)) {
-    return fs.existsSync(spritePath) ? spritePath : null;
-  }
-
-  const sharedBase = '/home/pi/shared-data';
-  const p1 = path.resolve(sharedBase, spritePath);
-  if (fs.existsSync(p1)) return p1;
-
-  const p2 = path.resolve(process.cwd(), spritePath);
-  if (fs.existsSync(p2)) return p2;
-
-  return null;
+function cleanDuration(label) {
+  if (/end of hour/i.test(label)) return '1 hour';
+  return label.replace(/^until\s+/i, '');
 }
 
-async function getPokemonRow(pokemonNameOrKey) {
-  if (!pokemonNameOrKey) return null;
-
-  let row = await getPokemonByKey(pokemonNameOrKey).catch(() => null);
-  if (row) return row;
-
-  row = await getPokemonByName(pokemonNameOrKey).catch(() => null);
-  return row || null;
-}
-
-// Make narrative duration read cleanly
-function cleanDurationForSentence(durationLabel) {
-  const raw = String(durationLabel || '').trim();
-  if (!raw) return 'the time limit';
-
-  // Your current label is "Until end of hour" → sentence should be "1 hour"
-  if (/end of hour/i.test(raw)) return '1 hour';
-
-  // Strip leading "Until "
-  return raw.replace(/^until\s+/i, '');
-}
-
-/**
- * ACTIVE challenge card renderer
- */
+// ───────── MAIN ─────────
 async function createChallengeCard(options) {
   const {
     challengeId,
@@ -239,340 +148,136 @@ async function createChallengeCard(options) {
     rankName,
     rarityKey,
     rarityLabel,
-    pokemonName, // single pokemon (key or name)
+    pokemonName,
     startLabel,
     endLabel,
     durationLabel,
     note,
     pointsLabel,
-    backgroundPath // optional
+    backgroundPath
   } = options;
 
-  // Pull sprite path + display name from shared DB
-  const pokeRow = await getPokemonRow(pokemonName);
-  const displayName = pokeRow?.display_name || pokemonName || 'None';
-  const spritePath = resolveSpritePath(pokeRow?.sprite_path);
+  const pokeRow =
+    (await getPokemonByKey(pokemonName).catch(() => null)) ||
+    (await getPokemonByName(pokemonName).catch(() => null));
 
-  // Prefer rarity from shared DB if present
-  const effectiveRarityKey = pokeRow?.rarity || rarityKey || 'common';
-  const style = getStyleForRarity(effectiveRarityKey);
-
+  const displayName = pokeRow?.display_name || pokemonName;
+  const effectiveRarity = pokeRow?.rarity || rarityKey || 'common';
+  const style = getStyleForRarity(effectiveRarity);
   const rankTheme = themeForRank(rankName);
 
   const canvas = createCanvas(CARD_WIDTH, CARD_HEIGHT);
   const ctx = canvas.getContext('2d');
 
-  // ───────── OUTER CLIP (report card) ─────────
+  // Outer clip
   ctx.save();
-  roundedRectPath(
-    ctx,
-    EDGE / 2,
-    EDGE / 2,
-    CARD_WIDTH - EDGE,
-    CARD_HEIGHT - EDGE,
-    EDGE_RADIUS
-  );
+  roundedRectPath(ctx, EDGE / 2, EDGE / 2, CARD_WIDTH - EDGE, CARD_HEIGHT - EDGE, EDGE_RADIUS);
   ctx.clip();
 
-  // ───────── BACKGROUND ─────────
-  let usedBg = false;
-  if (backgroundPath && typeof backgroundPath === 'string') {
-    const abs = path.isAbsolute(backgroundPath)
-      ? backgroundPath
-      : path.resolve(process.cwd(), backgroundPath);
+  // Background
+  const bg = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
+  bg.addColorStop(0, style.gradientFrom);
+  bg.addColorStop(1, style.gradientTo);
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 
-    if (fs.existsSync(abs)) {
-      try {
-        const bgImg = await loadImage(abs);
-        ctx.drawImage(bgImg, 0, 0, CARD_WIDTH, CARD_HEIGHT);
-        usedBg = true;
-      } catch {
-        usedBg = false;
-      }
-    }
+  const rightSize = Math.min((CARD_WIDTH - MARGIN * 3) * 0.4, CARD_HEIGHT - MARGIN * 2);
+  const rightX = CARD_WIDTH - MARGIN - rightSize;
+  const rightY = MARGIN + (CARD_HEIGHT - 2 * MARGIN - rightSize) / 2;
+
+  // Sprite
+  if (pokeRow?.sprite_path) {
+    try {
+      const img = await loadImage(pokeRow.sprite_path);
+      const scale = Math.min(rightSize / img.width, rightSize / img.height);
+      const w = img.width * scale;
+      const h = img.height * scale;
+      ctx.drawImage(img, rightX + (rightSize - w) / 2, rightY + (rightSize - h) / 2, w, h);
+    } catch {}
   }
 
-  if (!usedBg) {
-    const bg = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
-    bg.addColorStop(0, style.gradientFrom);
-    bg.addColorStop(1, style.gradientTo);
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
-
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.20)';
-    ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
-  }
-
-  // Layout: left text column (~60%), right image column (~40%)
-  const totalInnerWidth = CARD_WIDTH - MARGIN * 3;
-  const rightMaxWidth = totalInnerWidth * 0.4;
-  const rightMaxHeight = CARD_HEIGHT - 2 * MARGIN;
-  const imageSize = Math.min(rightMaxWidth, rightMaxHeight);
-
-  const rightX = CARD_WIDTH - MARGIN - imageSize;
-
-  // ✅ Center the sprite box vertically
-  const safeTop = MARGIN;
-  const safeHeight = CARD_HEIGHT - 2 * MARGIN;
-  const rightY = safeTop + (safeHeight - imageSize) / 2;
-
+  // Text boxes
   const leftX = MARGIN;
-  const leftY = MARGIN;
-  const leftWidth = rightX - leftX - MARGIN;
-  const leftHeight = CARD_HEIGHT - 2 * MARGIN;
+  const leftW = rightX - leftX - MARGIN;
+  const FONT = 55;
+  const LH = FONT * 1.25;
+  ctx.font = `bold ${FONT}px sans-serif`;
 
-  // ──────────────────────────────
-  // RIGHT IMAGE — Pokémon sprite
-  // ✅ NO BORDER OUTLINE on sprite box
-  // ✅ Uniform scale only
-  // ──────────────────────────────
-  ctx.save();
-  try {
-    roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
-    ctx.clip();
-
-    if (spritePath) {
-      const img = await loadImage(spritePath);
-
-      const imgAspect = img.width / img.height;
-      let drawW = imageSize;
-      let drawH = imageSize;
-
-      // Uniform scaling only
-      if (imgAspect > 1) drawH = imageSize / imgAspect;
-      else drawW = imageSize * imgAspect;
-
-      const cx = rightX + (imageSize - drawW) / 2;
-      const cy = rightY + (imageSize - drawH) / 2;
-
-      ctx.drawImage(img, cx, cy, drawW, drawH);
-    } else {
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-      ctx.fillRect(rightX, rightY, imageSize, imageSize);
-      ctx.font = 'bold 42px sans-serif';
-      ctx.fillStyle = '#e5e7eb';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('No Sprite', rightX + imageSize / 2, rightY + imageSize / 2);
-    }
-  } catch {
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-    ctx.fillRect(rightX, rightY, imageSize, imageSize);
-    ctx.font = 'bold 42px sans-serif';
-    ctx.fillStyle = '#e5e7eb';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('No Sprite', rightX + imageSize / 2, rightY + imageSize / 2);
-  }
-  ctx.restore();
-
-  // ──────────────────────────────
-  // LEFT COLUMN: info + note boxes
-  // ✅ Slightly smaller paddings to reduce box sizes
-  // ──────────────────────────────
-  const boxGap = 55;
-
-  const FONT_SIZE = 55;
-  const lineHeight = FONT_SIZE * 1.25;
-  const groupSpacing = lineHeight * 0.7;
-
-  const labelColor = '#facc15';
-  const valueColor = '#f9fafb';
-
-  // reduced internal padding so boxes shrink
-  const infoPaddingX = 55;
-  const infoPaddingY = 50;
-  const notePaddingX = 55;
-  const notePaddingY = 40;
-
-  // ───────── Narrative paragraph (styled + wrapped) ─────────
-  ctx.font = `bold ${FONT_SIZE}px sans-serif`;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-
-  const contentW = leftWidth - infoPaddingX * 2;
-  const cleanDur = cleanDurationForSentence(durationLabel);
-
-  const narrativeTokens = [
-    { kind: 'issuer', text: String(issuedBy || 'Someone') },
-    { kind: 'normal', text: ' has issued a new challenge. ' },
-    { kind: 'normal', text: 'Catch a ' },
-    { kind: 'pokemon', text: String(displayName || 'Pokémon') },
+  const narrative = wrapStyledTokens(ctx, [
+    { kind: 'issuer', text: issuedBy },
+    { kind: 'normal', text: ' has issued a new challenge. Catch a ' },
+    { kind: 'pokemon', text: displayName },
     { kind: 'normal', text: ' within ' },
-    { kind: 'duration', text: String(cleanDur) },
+    { kind: 'duration', text: cleanDuration(durationLabel) },
     { kind: 'normal', text: '.' }
-  ];
+  ], leftW - 110);
 
-  const narrativeLines = wrapStyledTokens(ctx, narrativeTokens, contentW);
-  const narrativeHeight = narrativeLines.length * lineHeight;
-
-  // ───────── Meta rows ─────────
-  const metaRows = [
-    { label: 'Rank:', value: rankName || 'Member' },
-    { label: 'Rarity:', value: rarityLabel || effectiveRarityKey || 'common' },
-    { label: 'Points:', value: pointsLabel || '' },
-    { spacer: true },
-    { label: 'Start time:', value: startLabel || '' },
-    { label: 'End time:', value: endLabel || '' }
-  ];
-
-  // Measure label width
-  let maxLabelWidth = 0;
-  for (const r of metaRows) {
-    if (r.label) maxLabelWidth = Math.max(maxLabelWidth, ctx.measureText(r.label).width);
-  }
-
-  const labelX = leftX + infoPaddingX;
-  const valueX = labelX + maxLabelWidth + 40;
-  const valueW = (leftX + leftWidth - infoPaddingX) - valueX;
-
-  // Pre-wrap meta values
-  const metaWrapped = metaRows.map(r => {
-    if (r.spacer) return { spacer: true };
-    const lines = wrapPlainText(ctx, r.value, valueW);
-    return { label: r.label, lines };
-  });
-
-  let metaHeight = 0;
-  for (const r of metaWrapped) {
-    if (r.spacer) {
-      metaHeight += groupSpacing;
-      continue;
+  let y = MARGIN + 60;
+  for (const line of narrative) {
+    let x = leftX + 55;
+    for (const p of line) {
+      drawPiece(ctx, p.text, x, y, p.kind, {
+        issuerColor: rankTheme.name,
+        pokemonColor: rarityTextColors[effectiveRarity],
+        lineHeight: LH
+      });
+      x += ctx.measureText(p.text).width;
     }
-    metaHeight += Math.max(1, r.lines.length) * lineHeight;
-    if (r.label === 'Points:') metaHeight += lineHeight * 0.2;
+    y += LH;
   }
 
-  // Note box wrap
-  const noteText = note || 'Good luck!';
-  const noteLines = wrapPlainText(ctx, noteText, leftWidth - notePaddingX * 2);
-  const noteTextHeight = noteLines.length * lineHeight;
-  const noteMinHeight = notePaddingY * 2 + lineHeight * 2;
-  const noteNeededHeight = notePaddingY * 2 + noteTextHeight;
-  const noteBoxHeight = Math.max(noteMinHeight, noteNeededHeight);
+  y += LH * 0.6;
 
-  // Info box height (narrative + spacing + meta)
-  const infoInternalGap = lineHeight * 0.55;
-  const infoTextHeight = narrativeHeight + infoInternalGap + metaHeight;
-  const infoNeededHeight = infoPaddingY * 2 + infoTextHeight;
+  ctx.fillStyle = '#facc15';
+  ctx.fillText('Reward:', leftX + 55, y);
+  ctx.fillStyle = '#fff';
+  ctx.fillText(pointsLabel, leftX + 250, y);
 
-  const leftAvailableForInfo = leftHeight - boxGap - noteBoxHeight;
-  const infoBoxHeight = Math.max(
-    infoNeededHeight,
-    Math.min(leftAvailableForInfo, leftHeight * 0.85)
-  );
+  y += LH * 1.4;
 
-  const infoBoxX = leftX;
-  const infoBoxY = leftY;
-  const infoBoxW = leftWidth;
-  const infoBoxH = infoBoxHeight;
+  ctx.fillStyle = '#facc15';
+  ctx.fillText('Start time:', leftX + 55, y);
+  ctx.fillStyle = '#fff';
+  ctx.fillText(startLabel, leftX + 300, y);
 
-  const noteBoxX = leftX;
-  const noteBoxY = infoBoxY + infoBoxH + boxGap;
-  const noteBoxW = leftWidth;
-  const noteBoxH = leftHeight - infoBoxH - boxGap;
+  y += LH;
 
-  // Draw info box (report thickness + rank outline colour)
-  ctx.save();
-  roundedRectPath(ctx, infoBoxX, infoBoxY, infoBoxW, infoBoxH, 40);
+  ctx.fillStyle = '#facc15';
+  ctx.fillText('End time:', leftX + 55, y);
+  ctx.fillStyle = '#fff';
+  ctx.fillText(endLabel, leftX + 300, y);
+
+  // Note box – exactly 2 lines
+  const noteBoxH = LH * 2 + 80;
+  const noteY = CARD_HEIGHT - MARGIN - noteBoxH;
+
+  roundedRectPath(ctx, leftX, noteY, leftW, noteBoxH, 40);
   ctx.fillStyle = style.boxColor;
   ctx.fill();
-  ctx.lineJoin = 'round';
   ctx.lineWidth = 20;
-  ctx.shadowBlur = 0;
-  ctx.shadowColor = 'transparent';
   ctx.strokeStyle = rankTheme.outline;
   ctx.stroke();
-  ctx.restore();
 
-  // Draw narrative + meta (vertically centered as a block)
-  const blockTotalHeight = infoTextHeight;
-  let cursorY = infoBoxY + (infoBoxH - blockTotalHeight) / 2;
-
-  const drawTheme = {
-    issuerColor: rankTheme.name,
-    pokemonColor: rarityTextColors[effectiveRarityKey] || '#ffffff',
-    lineHeight
-  };
-
-  // Narrative lines
-  for (const line of narrativeLines) {
-    let x = labelX;
-    for (const piece of line) {
-      drawPiece(ctx, piece.text, x, cursorY, piece.kind, drawTheme);
-      x += ctx.measureText(piece.text).width;
-    }
-    cursorY += lineHeight;
+  const noteLines = wrapPlainText(ctx, note, leftW - 110).slice(0, 2);
+  let ny = noteY + (noteBoxH - noteLines.length * LH) / 2;
+  ctx.fillStyle = '#fff';
+  for (const l of noteLines) {
+    ctx.fillText(l, leftX + 55, ny);
+    ny += LH;
   }
 
-  cursorY += infoInternalGap;
-
-  // Meta rows
-  for (const row of metaWrapped) {
-    if (row.spacer) {
-      cursorY += groupSpacing;
-      continue;
-    }
-
-    ctx.fillStyle = labelColor;
-    ctx.fillText(row.label, labelX, cursorY);
-
-    ctx.fillStyle = valueColor;
-    for (const l of row.lines) {
-      ctx.fillText(l, valueX, cursorY);
-      cursorY += lineHeight;
-    }
-
-    if (row.label === 'Points:') cursorY += lineHeight * 0.2;
-  }
-
-  // Draw note box (report thickness + rank outline colour)
-  ctx.save();
-  roundedRectPath(ctx, noteBoxX, noteBoxY, noteBoxW, noteBoxH, 40);
-  ctx.fillStyle = style.boxColor;
-  ctx.fill();
-  ctx.lineJoin = 'round';
-  ctx.lineWidth = 20;
-  ctx.shadowBlur = 0;
-  ctx.shadowColor = 'transparent';
-  ctx.strokeStyle = rankTheme.outline;
-  ctx.stroke();
   ctx.restore();
 
-  // Note text centered
-  const totalNoteTextHeight = noteLines.length * lineHeight;
-  let noteStartY = noteBoxY + (noteBoxH - totalNoteTextHeight) / 2;
-
-  ctx.fillStyle = valueColor;
-  for (const line of noteLines) {
-    ctx.fillText(line, noteBoxX + notePaddingX, noteStartY);
-    noteStartY += lineHeight;
-  }
-
-  // Restore outer clip
-  ctx.restore();
-
-  // ───────── OUTER EDGE (report card) ─────────
-  ctx.save();
-  roundedRectPath(
-    ctx,
-    EDGE / 2,
-    EDGE / 2,
-    CARD_WIDTH - EDGE,
-    CARD_HEIGHT - EDGE,
-    EDGE_RADIUS
-  );
+  // Outer border
+  roundedRectPath(ctx, EDGE / 2, EDGE / 2, CARD_WIDTH - EDGE, CARD_HEIGHT - EDGE, EDGE_RADIUS);
   ctx.lineWidth = EDGE;
   ctx.strokeStyle = rankTheme.outline;
-  ctx.shadowBlur = 0;
-  ctx.shadowColor = 'transparent';
   ctx.stroke();
-  ctx.restore();
 
   const buffer = canvas.toBuffer('image/png');
-  const filePath = path.join(CARDS_DIR, `challenge_${challengeId}.png`);
-  fs.writeFileSync(filePath, buffer);
-
+  fs.writeFileSync(path.join(CARDS_DIR, `challenge_${challengeId}.png`), buffer);
   return buffer;
 }
 
