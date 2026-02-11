@@ -31,15 +31,6 @@ function getRankFromMember(member) {
 }
 
 /* -----------------------------------------------------------
- * Time helper — round to end of hour
- * ----------------------------------------------------------- */
-function roundToEndOfHour(ts) {
-  const d = new Date(ts);
-  d.setMinutes(59, 59, 999);
-  return d.getTime();
-}
-
-/* -----------------------------------------------------------
  * Points mapping (LOCKED)
  * ----------------------------------------------------------- */
 function pointsForRarity(rarity) {
@@ -80,20 +71,21 @@ function normalize(ch) {
 
   return {
     id: ch.id,
-    guildId: ch.guild_id || ch.guildId,
-    issuerId: ch.issuer_id || ch.issuerId,
-    issuerName: ch.issuer_name || ch.issuerName,
+    guildId: ch.guild_id,
+    issuerId: ch.issuer_id,
+    issuerName: ch.issuer_name,
 
     pokemon,
     notes: ch.notes,
 
-    startTime: ch.start_time || ch.startTime,
-    endTime: ch.end_time || ch.endTime,
+    startTime: ch.start_time,
+    endTime: ch.end_time,
+    durationHours: ch.duration_hours,
 
     status: ch.status,
 
-    cardChannelId: ch.card_channel_id || ch.cardChannelId,
-    cardMessageId: ch.card_message_id || ch.cardMessageId
+    cardChannelId: ch.card_channel_id,
+    cardMessageId: ch.card_message_id
   };
 }
 
@@ -103,11 +95,9 @@ function normalize(ch) {
 async function resolvePokemon(pokemonNameOrKey) {
   if (!pokemonNameOrKey) return null;
 
-  // Try key first
   let row = await getPokemonByKey(pokemonNameOrKey).catch(() => null);
   if (row) return row;
 
-  // Fallback to display name
   row = await getPokemonByName(pokemonNameOrKey).catch(() => null);
   return row || null;
 }
@@ -145,11 +135,10 @@ async function postChallengeCard(client, raw) {
   const rankName = getRankFromMember(member);
 
   const startLabel = new Date(challenge.startTime).toLocaleString('en-GB');
+  const endLabel = new Date(challenge.endTime).toLocaleString('en-GB');
 
-  const roundedEnd = roundToEndOfHour(challenge.endTime);
-  const endLabel = new Date(roundedEnd).toLocaleString('en-GB');
-
-  const durationLabel = 'Until end of hour';
+  // ✅ SINGLE SOURCE OF TRUTH — FROM DB
+  const durationLabel = db.formatChallengeDuration(challenge);
 
   // ──────────────────────────────
   // Pokémon → rarity → points
@@ -171,7 +160,7 @@ async function postChallengeCard(client, raw) {
     pokemonName: pokemonRow?.display_name || challenge.pokemon,
     startLabel,
     endLabel,
-    durationLabel,
+    durationLabel, // ← FIXED
     note: challenge.notes || 'Good luck!',
     pointsLabel
   });
@@ -206,41 +195,37 @@ function startChallengeScheduler(client) {
     const now = Date.now();
 
     try {
-      // Start scheduled challenges
       const toStart = await db.getChallengesToStart(now);
 
       for (const raw of toStart) {
         try {
-          const challenge = normalize(raw);
-          if (!challenge || challenge.status === 'open') continue;
+          if (raw.status === 'open') continue;
 
-          await postChallengeCard(client, challenge);
-          await db.updateChallenge(challenge.id, { status: 'open' });
+          await postChallengeCard(client, raw);
+          await db.updateChallenge(raw.id, { status: 'open' });
         } catch (err) {
           console.error('❌ Error starting challenge:', err);
         }
       }
 
-      // Expire challenges (delete active card)
       const toExpire = await db.getChallengesToExpire(now);
 
       for (const raw of toExpire) {
         try {
-          const challenge = normalize(raw);
-          const guild = client.guilds.cache.get(challenge.guildId);
+          const guild = client.guilds.cache.get(raw.guild_id);
           if (!guild) continue;
 
-          if (challenge.cardMessageId) {
-            const ch = guild.channels.cache.get(challenge.cardChannelId);
+          if (raw.card_message_id) {
+            const ch = guild.channels.cache.get(raw.card_channel_id);
             if (ch) {
               const msg = await ch.messages
-                .fetch(challenge.cardMessageId)
+                .fetch(raw.card_message_id)
                 .catch(() => null);
               if (msg) await msg.delete().catch(() => {});
             }
           }
 
-          await db.updateChallenge(challenge.id, { status: 'expired' });
+          await db.updateChallenge(raw.id, { status: 'expired' });
         } catch (err) {
           console.error('❌ Error expiring challenge:', err);
         }
