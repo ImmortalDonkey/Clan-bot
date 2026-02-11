@@ -7,16 +7,28 @@ function genId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
+/**
+ * Build hour choices: 00:00 → 23:00
+ */
+function buildHourChoices() {
+  const out = [];
+  for (let h = 0; h < 24; h++) {
+    const label = `${String(h).padStart(2, '0')}:00`;
+    out.push({ name: label, value: h });
+  }
+  return out;
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('challengeissue')
     .setDescription('Issue a clan challenge (clan leaders only)')
 
-    // ───────── REQUIRED OPTIONS FIRST ─────────
+    // ───────── REQUIRED OPTIONS ─────────
     .addStringOption(o =>
       o
-        .setName('pokemon1')
-        .setDescription('Target Pokémon #1')
+        .setName('pokemon')
+        .setDescription('Target Pokémon')
         .setRequired(true)
     )
     .addIntegerOption(o =>
@@ -28,19 +40,7 @@ module.exports = {
         .setMaxValue(48)
     )
 
-    // ───────── OPTIONAL OPTIONS AFTER ─────────
-    .addStringOption(o =>
-      o
-        .setName('pokemon2')
-        .setDescription('Target Pokémon #2')
-        .setRequired(false)
-    )
-    .addStringOption(o =>
-      o
-        .setName('pokemon3')
-        .setDescription('Target Pokémon #3')
-        .setRequired(false)
-    )
+    // ───────── START TIME OPTIONS ─────────
     .addBooleanOption(o =>
       o
         .setName('start_now')
@@ -49,12 +49,13 @@ module.exports = {
     )
     .addIntegerOption(o =>
       o
-        .setName('start_in_minutes')
-        .setDescription('If not start_now, start in N minutes')
+        .setName('start_hour')
+        .setDescription('If not start_now, choose start hour (today)')
         .setRequired(false)
-        .setMinValue(1)
-        .setMaxValue(24 * 60)
+        .addChoices(...buildHourChoices())
     )
+
+    // ───────── OPTIONAL ─────────
     .addStringOption(o =>
       o
         .setName('notes')
@@ -79,31 +80,35 @@ module.exports = {
       });
     }
 
-    const p1 = interaction.options.getString('pokemon1', true).trim();
-    const p2 = interaction.options.getString('pokemon2', false);
-    const p3 = interaction.options.getString('pokemon3', false);
-
+    const pokemon = interaction.options.getString('pokemon', true).trim();
     const durationHours = interaction.options.getInteger('duration_hours', true);
     const startNow = interaction.options.getBoolean('start_now') ?? false;
-    const startInMinutes = interaction.options.getInteger('start_in_minutes', false);
+    const startHour = interaction.options.getInteger('start_hour', false);
     const notes = interaction.options.getString('notes', false);
 
-    const pokemons = [p1, p2, p3]
-      .filter(Boolean)
-      .map(s => String(s).trim())
-      .filter(Boolean);
-
     const now = Date.now();
-    let startTime = now;
+    let startTime;
 
-    if (!startNow) {
-      if (!startInMinutes) {
+    if (startNow) {
+      startTime = now;
+    } else {
+      if (startHour === null || startHour === undefined) {
         return interaction.reply({
-          content: '❌ If start_now is false, provide start_in_minutes.',
+          content: '❌ If start_now is false, you must choose a start_hour.',
           ephemeral: true
         });
       }
-      startTime = now + startInMinutes * 60_000;
+
+      const d = new Date(now);
+      d.setMinutes(0, 0, 0);
+      d.setHours(startHour);
+
+      // If chosen hour already passed today, schedule for tomorrow
+      if (d.getTime() <= now) {
+        d.setDate(d.getDate() + 1);
+      }
+
+      startTime = d.getTime();
     }
 
     const endTime = startTime + durationHours * 60 * 60_000;
@@ -114,7 +119,7 @@ module.exports = {
       guild_id: guild.id,
       issuer_id: user.id,
       issuer_name: user.username,
-      pokemons_json: JSON.stringify(pokemons),
+      pokemons_json: JSON.stringify([pokemon]),
       notes: notes || null,
       start_time: startTime,
       end_time: endTime,
@@ -126,13 +131,16 @@ module.exports = {
     await interaction.reply({
       content: startNow
         ? `✅ Challenge **#${id}** issued and started.`
-        : `✅ Challenge **#${id}** scheduled to start in **${startInMinutes} minutes**.`,
+        : `✅ Challenge **#${id}** scheduled.`,
       ephemeral: true
     });
 
     if (startNow) {
       const ch = await db.getChallengeById(id);
-      await postChallengeCard(client, ch);
+      await postChallengeCard(client, {
+        ...ch,
+        duration_label: `${durationHours} hours`
+      });
     }
   }
 };
