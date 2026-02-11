@@ -27,6 +27,7 @@ function run(sql, params = []) {
     });
   });
 }
+
 function get(sql, params = []) {
   return new Promise((resolve, reject) => {
     db.get(sql, params, (err, row) => {
@@ -35,6 +36,7 @@ function get(sql, params = []) {
     });
   });
 }
+
 function all(sql, params = []) {
   return new Promise((resolve, reject) => {
     db.all(sql, params, (err, rows) => {
@@ -54,6 +56,10 @@ function normIgn(ign) {
     .toLowerCase()
     .replace(/\s+/g, ' ');
 }
+
+/* ────────────────────────────── */
+/* INIT                           */
+/* ────────────────────────────── */
 
 async function init() {
   await run(`CREATE TABLE IF NOT EXISTS challenges (
@@ -129,9 +135,42 @@ async function init() {
   )`);
 }
 
-// ---------------- Challenges ----------------
+/* ────────────────────────────── */
+/* CHALLENGE HELPERS (PATCH)      */
+/* ────────────────────────────── */
+
+/**
+ * SINGLE SOURCE OF TRUTH for duration text.
+ * This prevents renderer bugs permanently.
+ */
+function formatChallengeDuration(challenge) {
+  if (!challenge) return null;
+
+  // Preferred: explicit duration_hours
+  if (Number.isInteger(challenge.duration_hours)) {
+    const h = challenge.duration_hours;
+    return h === 1 ? '1 hour' : `${h} hours`;
+  }
+
+  // Fallback: derive from timestamps (defensive only)
+  if (challenge.start_time && challenge.end_time) {
+    const diffMs = challenge.end_time - challenge.start_time;
+    const hours = Math.round(diffMs / (60 * 60 * 1000));
+    return hours === 1 ? '1 hour' : `${hours} hours`;
+  }
+
+  return null;
+}
+
+/* ────────────────────────────── */
+/* CHALLENGES                     */
+/* ────────────────────────────── */
 
 async function createChallenge(row) {
+  if (!Number.isInteger(row.duration_hours)) {
+    throw new Error('❌ duration_hours is required and must be an integer');
+  }
+
   await run(
     `INSERT INTO challenges
       (id, guild_id, issuer_id, issuer_name, pokemons_json, notes,
@@ -188,7 +227,9 @@ async function getChallengesToExpire(now) {
   );
 }
 
-// ---------------- Claims ----------------
+/* ────────────────────────────── */
+/* CLAIMS                         */
+/* ────────────────────────────── */
 
 async function createChallengeClaim(row) {
   const res = await run(
@@ -236,7 +277,9 @@ async function hasPendingClaim(challengeId, hunterId) {
   return !!row;
 }
 
-// ---------------- IGN links ----------------
+/* ────────────────────────────── */
+/* IGN LINKS                      */
+/* ────────────────────────────── */
 
 async function upsertPlayerIgn(discordId, ign) {
   const ignNorm = normIgn(ign);
@@ -256,7 +299,9 @@ async function getPlayerByDiscordId(discordId) {
   return await get(`SELECT * FROM players WHERE discord_id = ? LIMIT 1`, [discordId]);
 }
 
-// ---------------- Points ----------------
+/* ────────────────────────────── */
+/* POINTS                        */
+/* ────────────────────────────── */
 
 async function addDiscordPoints(guildId, discordId, points, reason) {
   await run(
@@ -314,6 +359,10 @@ async function incCompletedChallengeIgn(guildId, ign) {
   );
 }
 
+/* ────────────────────────────── */
+/* EXPORTS                       */
+/* ────────────────────────────── */
+
 module.exports = {
   init,
 
@@ -324,6 +373,7 @@ module.exports = {
   getChallengesByStatus,
   getChallengesToStart,
   getChallengesToExpire,
+  formatChallengeDuration, // ← NEW, CANONICAL
 
   // claim
   createChallengeClaim,
