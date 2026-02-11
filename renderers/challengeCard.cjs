@@ -11,7 +11,8 @@ const CARD_HEIGHT = 1300;
 const EDGE = 26;
 const EDGE_RADIUS = EDGE * 4.6;
 
-const MARGIN = 40;
+// Increased padding to create more space to the outer border
+const MARGIN = 80;
 
 // Output directory
 const CARDS_DIR = path.join(__dirname, 'card-images');
@@ -216,17 +217,20 @@ async function getPokemonRow(pokemonNameOrKey) {
   return row || null;
 }
 
+// Make narrative duration read cleanly
+function cleanDurationForSentence(durationLabel) {
+  const raw = String(durationLabel || '').trim();
+  if (!raw) return 'the time limit';
+
+  // Your current label is "Until end of hour" → sentence should be "1 hour"
+  if (/end of hour/i.test(raw)) return '1 hour';
+
+  // Strip leading "Until "
+  return raw.replace(/^until\s+/i, '');
+}
+
 /**
  * ACTIVE challenge card renderer
- * - Outer rounding + border copied from report card
- * - Inner panel & sprite border thickness copied from report card
- * - New opening paragraph with styled wrapping
- * - Rank border colour = red shade per rank
- * - Pokémon text colour = rarity based
- * - Duration underlined
- *
- * options:
- *  - backgroundPath (optional): issuer custom background image
  */
 async function createChallengeCard(options) {
   const {
@@ -271,7 +275,6 @@ async function createChallengeCard(options) {
   ctx.clip();
 
   // ───────── BACKGROUND ─────────
-  // 1) issuer custom background if provided and exists
   let usedBg = false;
   if (backgroundPath && typeof backgroundPath === 'string') {
     const abs = path.isAbsolute(backgroundPath)
@@ -289,7 +292,6 @@ async function createChallengeCard(options) {
     }
   }
 
-  // 2) fallback to rarity gradient
   if (!usedBg) {
     const bg = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
     bg.addColorStop(0, style.gradientFrom);
@@ -297,7 +299,6 @@ async function createChallengeCard(options) {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 
-    // subtle overlay like bounty
     ctx.fillStyle = 'rgba(0, 0, 0, 0.20)';
     ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
   }
@@ -309,7 +310,11 @@ async function createChallengeCard(options) {
   const imageSize = Math.min(rightMaxWidth, rightMaxHeight);
 
   const rightX = CARD_WIDTH - MARGIN - imageSize;
-  const rightY = MARGIN;
+
+  // ✅ Center the sprite box vertically
+  const safeTop = MARGIN;
+  const safeHeight = CARD_HEIGHT - 2 * MARGIN;
+  const rightY = safeTop + (safeHeight - imageSize) / 2;
 
   const leftX = MARGIN;
   const leftY = MARGIN;
@@ -318,10 +323,14 @@ async function createChallengeCard(options) {
 
   // ──────────────────────────────
   // RIGHT IMAGE — Pokémon sprite
-  // Border thickness updated to match report card (20)
+  // ✅ NO BORDER OUTLINE on sprite box
+  // ✅ Uniform scale only
   // ──────────────────────────────
   ctx.save();
   try {
+    roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
+    ctx.clip();
+
     if (spritePath) {
       const img = await loadImage(spritePath);
 
@@ -329,18 +338,15 @@ async function createChallengeCard(options) {
       let drawW = imageSize;
       let drawH = imageSize;
 
+      // Uniform scaling only
       if (imgAspect > 1) drawH = imageSize / imgAspect;
       else drawW = imageSize * imgAspect;
 
       const cx = rightX + (imageSize - drawW) / 2;
       const cy = rightY + (imageSize - drawH) / 2;
 
-      roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
-      ctx.clip();
       ctx.drawImage(img, cx, cy, drawW, drawH);
     } else {
-      roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
-      ctx.clip();
       ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
       ctx.fillRect(rightX, rightY, imageSize, imageSize);
       ctx.font = 'bold 42px sans-serif';
@@ -350,8 +356,6 @@ async function createChallengeCard(options) {
       ctx.fillText('No Sprite', rightX + imageSize / 2, rightY + imageSize / 2);
     }
   } catch {
-    roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
-    ctx.clip();
     ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
     ctx.fillRect(rightX, rightY, imageSize, imageSize);
     ctx.font = 'bold 42px sans-serif';
@@ -362,22 +366,11 @@ async function createChallengeCard(options) {
   }
   ctx.restore();
 
-  // sprite border (match report card thickness)
-  ctx.save();
-  roundedRectPath(ctx, rightX, rightY, imageSize, imageSize, 40);
-  ctx.lineJoin = 'round';
-  ctx.lineWidth = 20;
-  ctx.shadowBlur = 0;
-  ctx.shadowColor = 'transparent';
-  ctx.strokeStyle = rankTheme.outline;
-  ctx.stroke();
-  ctx.restore();
-
   // ──────────────────────────────
   // LEFT COLUMN: info + note boxes
-  // Border thickness updated to match report card (20)
+  // ✅ Slightly smaller paddings to reduce box sizes
   // ──────────────────────────────
-  const boxGap = 40;
+  const boxGap = 55;
 
   const FONT_SIZE = 55;
   const lineHeight = FONT_SIZE * 1.25;
@@ -386,10 +379,11 @@ async function createChallengeCard(options) {
   const labelColor = '#facc15';
   const valueColor = '#f9fafb';
 
-  const infoPaddingX = 60;
-  const infoPaddingY = 60;
-  const notePaddingX = 60;
-  const notePaddingY = 50;
+  // reduced internal padding so boxes shrink
+  const infoPaddingX = 55;
+  const infoPaddingY = 50;
+  const notePaddingX = 55;
+  const notePaddingY = 40;
 
   // ───────── Narrative paragraph (styled + wrapped) ─────────
   ctx.font = `bold ${FONT_SIZE}px sans-serif`;
@@ -397,19 +391,22 @@ async function createChallengeCard(options) {
   ctx.textBaseline = 'top';
 
   const contentW = leftWidth - infoPaddingX * 2;
+  const cleanDur = cleanDurationForSentence(durationLabel);
 
   const narrativeTokens = [
     { kind: 'issuer', text: String(issuedBy || 'Someone') },
-    { kind: 'normal', text: ' has issued a new challenge. Catch a ' },
+    { kind: 'normal', text: ' has issued a new challenge. ' },
+    { kind: 'normal', text: 'Catch a ' },
     { kind: 'pokemon', text: String(displayName || 'Pokémon') },
     { kind: 'normal', text: ' within ' },
-    { kind: 'duration', text: String(durationLabel || 'the time limit') }
+    { kind: 'duration', text: String(cleanDur) },
+    { kind: 'normal', text: '.' }
   ];
 
   const narrativeLines = wrapStyledTokens(ctx, narrativeTokens, contentW);
   const narrativeHeight = narrativeLines.length * lineHeight;
 
-  // ───────── Meta rows (wrapped values where needed) ─────────
+  // ───────── Meta rows ─────────
   const metaRows = [
     { label: 'Rank:', value: rankName || 'Member' },
     { label: 'Rarity:', value: rarityLabel || effectiveRarityKey || 'common' },
@@ -424,11 +421,12 @@ async function createChallengeCard(options) {
   for (const r of metaRows) {
     if (r.label) maxLabelWidth = Math.max(maxLabelWidth, ctx.measureText(r.label).width);
   }
+
   const labelX = leftX + infoPaddingX;
   const valueX = labelX + maxLabelWidth + 40;
   const valueW = (leftX + leftWidth - infoPaddingX) - valueX;
 
-  // Pre-wrap meta values so we can compute total height safely
+  // Pre-wrap meta values
   const metaWrapped = metaRows.map(r => {
     if (r.spacer) return { spacer: true };
     const lines = wrapPlainText(ctx, r.value, valueW);
@@ -454,14 +452,14 @@ async function createChallengeCard(options) {
   const noteBoxHeight = Math.max(noteMinHeight, noteNeededHeight);
 
   // Info box height (narrative + spacing + meta)
-  const infoInternalGap = lineHeight * 0.6;
+  const infoInternalGap = lineHeight * 0.55;
   const infoTextHeight = narrativeHeight + infoInternalGap + metaHeight;
   const infoNeededHeight = infoPaddingY * 2 + infoTextHeight;
 
   const leftAvailableForInfo = leftHeight - boxGap - noteBoxHeight;
   const infoBoxHeight = Math.max(
     infoNeededHeight,
-    Math.min(leftAvailableForInfo, leftHeight * 0.9)
+    Math.min(leftAvailableForInfo, leftHeight * 0.85)
   );
 
   const infoBoxX = leftX;
@@ -516,11 +514,9 @@ async function createChallengeCard(options) {
       continue;
     }
 
-    // Label
     ctx.fillStyle = labelColor;
     ctx.fillText(row.label, labelX, cursorY);
 
-    // Value (wrap)
     ctx.fillStyle = valueColor;
     for (const l of row.lines) {
       ctx.fillText(l, valueX, cursorY);
