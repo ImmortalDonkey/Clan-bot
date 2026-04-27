@@ -27,9 +27,19 @@ module.exports = {
   async execute(client, interaction) {
     const guildId = interaction.guildId;
 
-    const existing = await db.getCurrentEvent(guildId);
-    if (existing) {
-      return interaction.reply({ content: '❌ An event already exists or is active.', ephemeral: true });
+    const blockingEvent = await db.get(
+      `SELECT * FROM events
+       WHERE guild_id = ? AND status IN ('SCHEDULED', 'ACTIVE')
+       ORDER BY start_time ASC
+       LIMIT 1`,
+      [guildId]
+    );
+
+    if (blockingEvent) {
+      return interaction.reply({
+        content: '❌ An event is already scheduled or active.',
+        ephemeral: true
+      });
     }
 
     const name = interaction.options.getString('name');
