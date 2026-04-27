@@ -7,6 +7,8 @@ const commandHandler = require('./handlers/commandHandler.cjs');
 const buttonHandler = require('./handlers/buttonHandler.cjs');
 const modalHandler = require('./handlers/modalHandler.cjs');
 
+const { startEventScheduler } = require('./services/eventScheduler.cjs');
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -19,6 +21,8 @@ client.once('ready', async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
   await db.init();
+
+  startEventScheduler(client);
 
   console.log('✅ Clan event system ready');
 });
