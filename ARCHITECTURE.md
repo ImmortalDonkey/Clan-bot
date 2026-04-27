@@ -1,28 +1,20 @@
 # Clan Bot — Architecture
 
 ## Overview
-Event-driven Discord bot for clan competitions. Core capabilities:
-- Event lifecycle (create → start → active → pending EXP → finalised → archive)
-- Pokémon submissions with staff verification
-- Points engine (rarity, duplicates, set bonus)
-- EXP snapshot + calculation system
-- Leaderboards and logs
+Event-driven Discord bot for clan competitions.
+
+### Implemented Systems
+- Event lifecycle automation (scheduler)
+- Pokémon submission + verification
+- Points engine (rarity + duplicates)
+- Full set bonus system
+- Leaderboard with correct event selection
+- Human-readable time parsing
 
 Built with:
 - Node.js (CommonJS)
 - discord.js v14
-- SQLite (sqlite3)
-
----
-
-## Runtime Flow
-1. `index.cjs` boots client, initialises DB, loads handlers
-2. Handlers route interactions:
-   - commands → `interactions/commands`
-   - buttons → `interactions/buttons`
-   - modals → `interactions/modals`
-3. Services (future) encapsulate business logic
-4. DB is single source of truth
+- SQLite
 
 ---
 
@@ -34,103 +26,130 @@ States:
 - FINALISED
 - ARCHIVED
 
-Transitions:
-- SCHEDULED → ACTIVE (time reached)
-- ACTIVE → PENDING_EXP (end time reached)
-- PENDING_EXP → FINALISED (after EXP import + confirm)
-- FINALISED → ARCHIVED (after 7 days)
+Scheduler (LIVE):
+- Runs every 30s
+- Transitions:
+  - SCHEDULED → ACTIVE
+  - ACTIVE → PENDING_EXP
 
 ---
 
 ## Data Model
+
 ### events
-Core event configuration + channels + reward snapshot
+- lifecycle state
+- channels
+- timing
+- reward config snapshot
 
 ### event_users
-Per-event user record (IGN + points)
+- one row per user per event
+- IGN + points
 
 ### submissions
-Pokémon submissions
-- unique `pokemon_id` per event
+- unique pokemon_id per event
 - status: PENDING / VERIFIED / REJECTED
 
 ### set_bonuses
-Tracks awarded set bonuses (once per species)
+- prevents duplicate bonuses
+- UNIQUE(event_id, discord_id, species)
 
-### exp_snapshots
-START / END EXP per IGN
-
-### exp_results
-Computed EXP gains + points
-
-### point_logs
-Audit trail of all point changes
+### exp_snapshots / exp_results
+- reserved for EXP system
 
 ---
 
-## Points Engine
+## Submission Flow
+
+1. User runs `/submit`
+2. Modal captures IGN, name, ID
+3. Stored as PENDING
+4. Sent to verification channel
+
+On verify:
+- status → VERIFIED
+- base points applied
+- set bonus check executed
+
+---
+
+## Points System
+
 ### Pokémon
 - Normal: 1
 - Dark/Mystic/Metallic: 5
 - Shiny/Shadow: 10
 
-Duplicates allowed (unique ID enforced)
+Duplicates allowed (ID-based uniqueness)
+
+---
 
 ### Set Bonus
-- 6 variants of same species
+Trigger:
+- user owns all 6 types for a species
+
+Types:
+- normal
+- metallic
+- mystic
+- dark
+- shadow
+- shiny
+
+Reward:
 - +20 points
-- once per species per user per event
-
-### EXP
-- 200,000 EXP = 1 point
-- +10 bonus per 5,000,000 EXP
+- once per species per event
 
 ---
 
-## Rewards
-Stored as JSON snapshot on event creation:
-- placementRewards
-- milestoneRewards (50 → 300)
+## Leaderboard Logic
 
-Config source: `config/eventRewards.json`
+Event priority:
+1. ACTIVE
+2. SCHEDULED
+3. latest PENDING_EXP
 
----
-
-## Command Layer
-- `/eventcreate`
-- `/eventleaderboard`
-- (planned) `/submit`, `/eventexp`, `/eventfinalise`
-
-Deploy script auto-loads all commands from folder
+Ensures correct event is always displayed.
 
 ---
 
-## Verification Flow
-1. User submits
-2. Bot posts to verification channel
-3. Staff clicks:
-   - ✅ Verify → award points
-   - ❌ Reject → DM user
+## Event Creation
+
+Supports:
+- ISO format
+- timestamps
+- natural input:
+  - now+5m
+  - now+1h
+  - today 20:00
+  - tomorrow 18:30
+  - 27/04/2026 20:00
 
 ---
 
-## Scheduler (planned)
-- Tick loop checks:
-  - events to start
-  - events to end
-  - events to archive
+## Logging
+
+Console:
+- scheduler actions
+- set bonus triggers
+
+Discord:
+- submission logs
+- set bonus announcements
 
 ---
 
-## Extensibility
-- Vortex API integration (auto verify Pokémon)
-- OCR import for EXP screenshots
-- Rich render cards
+## Current Gaps
+
+- EXP system
+- event finalisation
+- reward output
 
 ---
 
 ## Design Principles
-- Event-scoped data (no lifetime points)
-- Deterministic scoring
-- No silent automation without confirmation
-- Minimal assumptions, explicit flows
+
+- event-scoped data only
+- deterministic scoring
+- idempotent operations
+- explicit flows over hidden logic
