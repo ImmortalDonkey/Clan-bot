@@ -1,100 +1,97 @@
 # Clan Bot — Roadmap
 
 ## Phase 1 — Foundation (DONE)
-- Reset database to event model
-- `/eventcreate`
-- `/eventleaderboard`
-- Reward config system
-- Dynamic command loader
+- Clean DB
+- Command system
+- Reward config
 
 ---
 
-## Phase 2 — Submissions System
-- `/submit` command (modal)
-- Pokémon validation (ID format + duplicate check)
-- Verification channel posts
-- Buttons:
-  - Verify
-  - Reject
-- Public log messages
-- DM on rejection
+## Phase 2 — Submissions (DONE)
+- `/submit`
+- Modal input
+- Duplicate prevention
+- Verification system
 
 ---
 
-## Phase 3 — Points Engine
-- Rarity parsing (type detection)
+## Phase 3 — Points Engine (DONE)
+- Type parsing
 - Point assignment
-- Event user creation/upsert
-- Leaderboard updates
+- Event user tracking
 
 ---
 
-## Phase 4 — Set Bonus System
-- Track per-species types
-- Detect full set completion
-- Award +20 points
-- Prevent duplicate bonus
-- Public announcement on completion
+## Phase 4 — Set Bonus (DONE)
+- Track species types
+- Detect full set
+- +20 reward
+- Prevent duplicates
+- Public announcement
 
 ---
 
-## Phase 5 — EXP System
-- `/eventexp import_start`
-- `/eventexp import_end`
-- Snapshot storage
-- EXP gain calculation
-- Point conversion (200k rule + 5m bonus)
-- Review/confirm flow
-
----
-
-## Phase 6 — Event Finalisation
-- Lock submissions
-- Apply EXP points
-- `/eventfinalise`
-- Final leaderboard post (top 35)
-
----
-
-## Phase 7 — Scheduler
+## Phase 5 — Scheduler (DONE)
 - Auto start events
 - Auto end events
-- Move to PENDING_EXP
-- Auto archive after 7 days
+- Transition states
 
 ---
 
-## Phase 8 — Rewards UX
-- Display milestone unlocks
-- Show rewards in announcements
-- Final reward summary output
+## Phase 6 — Leaderboard Fix (DONE)
+- Correct event prioritisation
+- Multi-event support
 
 ---
 
-## Phase 9 — QoL Improvements
-- Edit EXP rows before confirm
-- Add rejection reasons
-- Manual point adjustments (admin)
+## Phase 7 — EXP System (NEXT)
+
+Build core EXP workflow:
+- import START values
+- import END values
+- calculate EXP gain
+- convert to points
+- apply bonuses
+- preview results
+- confirm application
+
+---
+
+## Phase 8 — Event Finalisation
+- lock event
+- apply EXP
+- announce winners
+
+---
+
+## Phase 9 — Rewards Output
+- milestone rewards
+- placement rewards
+- summary display
+
+---
+
+## Phase 10 — QoL
+- edit EXP before confirm
+- admin adjustments
 - `/eventstatus`
 
 ---
 
-## Phase 10 — Advanced Automation
-- Vortex API integration (auto Pokémon validation)
-- OCR EXP parsing
-- Image/card rendering for submissions
+## Phase 11 — Automation (Future)
+- OCR parsing for screenshots
+- Vortex API integration
+- UI improvements
 
 ---
 
-## Future Ideas
-- Multi-event presets
-- Cross-guild support
-- Web dashboard
+## Current Priority
 
----
+👉 EXP system
 
-## Development Strategy
-- Build in isolated phases
-- No breaking changes mid-phase
-- Always verify via Discord before proceeding
-- Keep DB as single source of truth
+This unlocks:
+- final scoring
+- event completion
+- reward distribution
+
+Without this, system is incomplete.
