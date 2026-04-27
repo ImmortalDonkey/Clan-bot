@@ -51,346 +51,258 @@ function nowMs() {
 }
 
 function normIgn(ign) {
-  return String(ign || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ');
+  return String(ign || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-/* ────────────────────────────── */
-/* INIT                           */
-/* ────────────────────────────── */
-
 async function init() {
-  await run(`CREATE TABLE IF NOT EXISTS challenges (
-    id TEXT PRIMARY KEY,
+  await run('PRAGMA foreign_keys = ON');
+
+  await run(`CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     guild_id TEXT NOT NULL,
-    issuer_id TEXT NOT NULL,
-    issuer_name TEXT,
-    pokemons_json TEXT NOT NULL,
-    notes TEXT,
+    name TEXT NOT NULL,
     start_time INTEGER NOT NULL,
     end_time INTEGER NOT NULL,
-    duration_hours INTEGER NOT NULL,
     status TEXT NOT NULL,
+    announcement_channel_id TEXT NOT NULL,
+    log_channel_id TEXT NOT NULL,
+    verification_channel_id TEXT NOT NULL,
+    staff_role_id TEXT NOT NULL,
+    reward_config_json TEXT NOT NULL,
+    created_by TEXT NOT NULL,
     created_at INTEGER NOT NULL,
-
-    card_channel_id TEXT,
-    card_message_id TEXT,
-
-    winner_id TEXT,
-    winner_claim_id INTEGER
+    started_at INTEGER,
+    ended_at INTEGER,
+    finalised_at INTEGER,
+    wipe_after INTEGER,
+    archived_at INTEGER
   )`);
 
-  await run(`CREATE TABLE IF NOT EXISTS challenge_claims (
+  await run(`CREATE INDEX IF NOT EXISTS idx_events_guild_status ON events(guild_id, status)`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_events_start ON events(status, start_time)`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_events_end ON events(status, end_time)`);
+
+  await run(`CREATE TABLE IF NOT EXISTS event_users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    challenge_id TEXT NOT NULL,
-    guild_id TEXT NOT NULL,
-    hunter_id TEXT NOT NULL,
-    ign TEXT,
-    ign_norm TEXT,
-    pokemon_id TEXT,
-    proof TEXT,
-    status TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
-    resolved_at INTEGER,
-    resolver_id TEXT,
-    claim_thread_id TEXT,
-    claim_message_id TEXT
-  )`);
-
-  await run(`CREATE TABLE IF NOT EXISTS players (
-    discord_id TEXT PRIMARY KEY,
-    ign TEXT,
-    ign_norm TEXT,
-    updated_at INTEGER
-  )`);
-  await run(`CREATE INDEX IF NOT EXISTS idx_players_ign_norm ON players(ign_norm)`);
-
-  await run(`CREATE TABLE IF NOT EXISTS points (
+    event_id INTEGER NOT NULL,
     guild_id TEXT NOT NULL,
     discord_id TEXT NOT NULL,
-    points INTEGER DEFAULT 0,
-    completed_challenges INTEGER DEFAULT 0,
-    PRIMARY KEY (guild_id, discord_id)
+    ign TEXT NOT NULL,
+    ign_norm TEXT NOT NULL,
+    points INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(event_id, discord_id),
+    UNIQUE(event_id, ign_norm),
+    FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
   )`);
 
-  await run(`CREATE TABLE IF NOT EXISTS ign_points (
+  await run(`CREATE INDEX IF NOT EXISTS idx_event_users_points ON event_users(event_id, points DESC, ign COLLATE NOCASE)`);
+
+  await run(`CREATE TABLE IF NOT EXISTS submissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
     guild_id TEXT NOT NULL,
+    discord_id TEXT NOT NULL,
+    ign TEXT NOT NULL,
     ign_norm TEXT NOT NULL,
-    ign TEXT,
-    points INTEGER DEFAULT 0,
-    completed_challenges INTEGER DEFAULT 0,
-    PRIMARY KEY (guild_id, ign_norm)
+    pokemon_name TEXT NOT NULL,
+    pokemon_species TEXT NOT NULL,
+    pokemon_type TEXT NOT NULL,
+    pokemon_id TEXT NOT NULL,
+    points_awarded INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,
+    verification_message_id TEXT,
+    verified_by TEXT,
+    verified_at INTEGER,
+    rejected_by TEXT,
+    rejected_at INTEGER,
+    created_at INTEGER NOT NULL,
+    UNIQUE(event_id, pokemon_id),
+    FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
+  )`);
+
+  await run(`CREATE INDEX IF NOT EXISTS idx_submissions_event_user ON submissions(event_id, discord_id, status)`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_submissions_set_bonus ON submissions(event_id, discord_id, pokemon_species, pokemon_type, status)`);
+
+  await run(`CREATE TABLE IF NOT EXISTS set_bonuses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    guild_id TEXT NOT NULL,
+    discord_id TEXT NOT NULL,
+    ign TEXT NOT NULL,
+    ign_norm TEXT NOT NULL,
+    pokemon_species TEXT NOT NULL,
+    bonus_points INTEGER NOT NULL,
+    awarded_at INTEGER NOT NULL,
+    UNIQUE(event_id, discord_id, pokemon_species),
+    FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
+  )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS exp_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    guild_id TEXT NOT NULL,
+    ign TEXT NOT NULL,
+    ign_norm TEXT NOT NULL,
+    snapshot_type TEXT NOT NULL,
+    pokemon_count INTEGER,
+    experience INTEGER NOT NULL,
+    source TEXT,
+    created_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE(event_id, ign_norm, snapshot_type),
+    FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
+  )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS exp_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    guild_id TEXT NOT NULL,
+    ign TEXT NOT NULL,
+    ign_norm TEXT NOT NULL,
+    start_exp INTEGER NOT NULL,
+    end_exp INTEGER NOT NULL,
+    exp_gained INTEGER NOT NULL,
+    base_exp_points INTEGER NOT NULL,
+    bonus_exp_points INTEGER NOT NULL,
+    total_exp_points INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE(event_id, ign_norm),
+    FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
   )`);
 
   await run(`CREATE TABLE IF NOT EXISTS point_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
     guild_id TEXT NOT NULL,
     discord_id TEXT,
+    ign TEXT,
     ign_norm TEXT,
     points INTEGER NOT NULL,
-    reason TEXT,
-    created_at INTEGER NOT NULL
+    reason TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
   )`);
 }
 
-/* ────────────────────────────── */
-/* CHALLENGE HELPERS (PATCH)      */
-/* ────────────────────────────── */
-
-/**
- * SINGLE SOURCE OF TRUTH for duration text.
- * This prevents renderer bugs permanently.
- */
-function formatChallengeDuration(challenge) {
-  if (!challenge) return null;
-
-  // Preferred: explicit duration_hours
-  if (Number.isInteger(challenge.duration_hours)) {
-    const h = challenge.duration_hours;
-    return h === 1 ? '1 hour' : `${h} hours`;
-  }
-
-  // Fallback: derive from timestamps (defensive only)
-  if (challenge.start_time && challenge.end_time) {
-    const diffMs = challenge.end_time - challenge.start_time;
-    const hours = Math.round(diffMs / (60 * 60 * 1000));
-    return hours === 1 ? '1 hour' : `${hours} hours`;
-  }
-
-  return null;
-}
-
-/* ────────────────────────────── */
-/* CHALLENGES                     */
-/* ────────────────────────────── */
-
-async function createChallenge(row) {
-  if (!Number.isInteger(row.duration_hours)) {
-    throw new Error('❌ duration_hours is required and must be an integer');
-  }
-
-  await run(
-    `INSERT INTO challenges
-      (id, guild_id, issuer_id, issuer_name, pokemons_json, notes,
-       start_time, end_time, duration_hours, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+async function createEvent(row) {
+  const res = await run(
+    `INSERT INTO events
+      (guild_id, name, start_time, end_time, status, announcement_channel_id, log_channel_id,
+       verification_channel_id, staff_role_id, reward_config_json, created_by, created_at, wipe_after)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      row.id,
       row.guild_id,
-      row.issuer_id,
-      row.issuer_name || null,
-      row.pokemons_json,
-      row.notes || null,
+      row.name,
       row.start_time,
       row.end_time,
-      row.duration_hours,
       row.status,
-      row.created_at
-    ]
-  );
-}
-
-async function getChallengeById(id) {
-  return await get(`SELECT * FROM challenges WHERE id = ? LIMIT 1`, [id]);
-}
-
-async function updateChallenge(id, patch) {
-  const keys = Object.keys(patch || {});
-  if (!keys.length) return;
-
-  const sets = keys.map(k => `${k} = ?`).join(', ');
-  const params = keys.map(k => patch[k]);
-  params.push(id);
-
-  await run(`UPDATE challenges SET ${sets} WHERE id = ?`, params);
-}
-
-async function getChallengesByStatus(status) {
-  return await all(`SELECT * FROM challenges WHERE status = ?`, [status]);
-}
-
-async function getChallengesToStart(now) {
-  return await all(
-    `SELECT * FROM challenges
-     WHERE status = 'scheduled' AND start_time <= ?`,
-    [now]
-  );
-}
-
-async function getChallengesToExpire(now) {
-  return await all(
-    `SELECT * FROM challenges
-     WHERE status = 'open' AND end_time <= ?`,
-    [now]
-  );
-}
-
-/* ────────────────────────────── */
-/* CLAIMS                         */
-/* ────────────────────────────── */
-
-async function createChallengeClaim(row) {
-  const res = await run(
-    `INSERT INTO challenge_claims
-      (challenge_id, guild_id, hunter_id, ign, ign_norm, pokemon_id, proof, status, created_at, claim_thread_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      row.challenge_id,
-      row.guild_id,
-      row.hunter_id,
-      row.ign || null,
-      row.ign_norm || null,
-      row.pokemon_id || null,
-      row.proof || null,
-      row.status,
+      row.announcement_channel_id,
+      row.log_channel_id,
+      row.verification_channel_id,
+      row.staff_role_id,
+      row.reward_config_json,
+      row.created_by,
       row.created_at,
-      row.claim_thread_id || null
+      row.wipe_after || null
     ]
   );
   return res.lastID;
 }
 
-async function getChallengeClaimById(id) {
-  return await get(`SELECT * FROM challenge_claims WHERE id = ? LIMIT 1`, [id]);
+async function getEventById(id) {
+  return await get(`SELECT * FROM events WHERE id = ? LIMIT 1`, [id]);
 }
 
-async function updateChallengeClaim(id, patch) {
+async function getCurrentEvent(guildId) {
+  return await get(
+    `SELECT * FROM events
+     WHERE guild_id = ? AND status IN ('SCHEDULED', 'ACTIVE', 'PENDING_EXP')
+     ORDER BY start_time ASC
+     LIMIT 1`,
+    [guildId]
+  );
+}
+
+async function getActiveEvent(guildId) {
+  return await get(
+    `SELECT * FROM events WHERE guild_id = ? AND status = 'ACTIVE' LIMIT 1`,
+    [guildId]
+  );
+}
+
+async function getLeaderboard(eventId, limit = 35) {
+  return await all(
+    `SELECT ign, points FROM event_users
+     WHERE event_id = ?
+     ORDER BY points DESC, ign COLLATE NOCASE ASC
+     LIMIT ?`,
+    [eventId, limit]
+  );
+}
+
+async function getEventsToStart(now) {
+  return await all(`SELECT * FROM events WHERE status = 'SCHEDULED' AND start_time <= ?`, [now]);
+}
+
+async function getEventsToEnd(now) {
+  return await all(`SELECT * FROM events WHERE status = 'ACTIVE' AND end_time <= ?`, [now]);
+}
+
+async function updateEvent(id, patch) {
   const keys = Object.keys(patch || {});
   if (!keys.length) return;
-
-  const sets = keys.map(k => `${k} = ?`).join(', ');
-  const params = keys.map(k => patch[k]);
+  const sets = keys.map((key) => `${key} = ?`).join(', ');
+  const params = keys.map((key) => patch[key]);
   params.push(id);
-
-  await run(`UPDATE challenge_claims SET ${sets} WHERE id = ?`, params);
+  await run(`UPDATE events SET ${sets} WHERE id = ?`, params);
 }
 
-async function hasPendingClaim(challengeId, hunterId) {
-  const row = await get(
-    `SELECT 1 FROM challenge_claims
-     WHERE challenge_id = ? AND hunter_id = ? AND status = 'pending'
-     LIMIT 1`,
-    [challengeId, hunterId]
-  );
-  return !!row;
-}
-
-/* ────────────────────────────── */
-/* IGN LINKS                      */
-/* ────────────────────────────── */
-
-async function upsertPlayerIgn(discordId, ign) {
+async function upsertEventUser({ event_id, guild_id, discord_id, ign }) {
   const ignNorm = normIgn(ign);
+  const timestamp = nowMs();
   await run(
-    `INSERT INTO players (discord_id, ign, ign_norm, updated_at)
-     VALUES (?, ?, ?, ?)
-     ON CONFLICT(discord_id) DO UPDATE SET
+    `INSERT INTO event_users (event_id, guild_id, discord_id, ign, ign_norm, points, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+     ON CONFLICT(event_id, discord_id) DO UPDATE SET
        ign = excluded.ign,
        ign_norm = excluded.ign_norm,
        updated_at = excluded.updated_at`,
-    [discordId, ign, ignNorm, nowMs()]
+    [event_id, guild_id, discord_id, ign, ignNorm, timestamp, timestamp]
   );
   return { ign, ignNorm };
 }
 
-async function getPlayerByDiscordId(discordId) {
-  return await get(`SELECT * FROM players WHERE discord_id = ? LIMIT 1`, [discordId]);
-}
-
-/* ────────────────────────────── */
-/* POINTS                        */
-/* ────────────────────────────── */
-
-async function addDiscordPoints(guildId, discordId, points, reason) {
+async function addEventUserPoints({ event_id, guild_id, discord_id, ign, points, reason }) {
+  const { ignNorm } = await upsertEventUser({ event_id, guild_id, discord_id, ign });
   await run(
-    `INSERT INTO points (guild_id, discord_id, points, completed_challenges)
-     VALUES (?, ?, ?, 0)
-     ON CONFLICT(guild_id, discord_id) DO UPDATE SET
-       points = points.points + excluded.points`,
-    [guildId, discordId, points]
+    `UPDATE event_users SET points = points + ?, updated_at = ?
+     WHERE event_id = ? AND discord_id = ?`,
+    [points, nowMs(), event_id, discord_id]
   );
-
   await run(
-    `INSERT INTO point_logs (guild_id, discord_id, ign_norm, points, reason, created_at)
-     VALUES (?, ?, NULL, ?, ?, ?)`,
-    [guildId, discordId, points, reason || null, nowMs()]
+    `INSERT INTO point_logs (event_id, guild_id, discord_id, ign, ign_norm, points, reason, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [event_id, guild_id, discord_id, ign, ignNorm, points, reason, nowMs()]
   );
 }
-
-async function addIgnPoints(guildId, ign, points, reason) {
-  const ignNorm = normIgn(ign);
-
-  await run(
-    `INSERT INTO ign_points (guild_id, ign_norm, ign, points, completed_challenges)
-     VALUES (?, ?, ?, ?, 0)
-     ON CONFLICT(guild_id, ign_norm) DO UPDATE SET
-       ign = excluded.ign,
-       points = ign_points.points + excluded.points`,
-    [guildId, ignNorm, ign, points]
-  );
-
-  await run(
-    `INSERT INTO point_logs (guild_id, discord_id, ign_norm, points, reason, created_at)
-     VALUES (?, NULL, ?, ?, ?, ?)`,
-    [guildId, ignNorm, points, reason || null, nowMs()]
-  );
-}
-
-async function incCompletedChallengeDiscord(guildId, discordId) {
-  await run(
-    `INSERT INTO points (guild_id, discord_id, points, completed_challenges)
-     VALUES (?, ?, 0, 1)
-     ON CONFLICT(guild_id, discord_id) DO UPDATE SET
-       completed_challenges = points.completed_challenges + 1`,
-    [guildId, discordId]
-  );
-}
-
-async function incCompletedChallengeIgn(guildId, ign) {
-  const ignNorm = normIgn(ign);
-  await run(
-    `INSERT INTO ign_points (guild_id, ign_norm, ign, points, completed_challenges)
-     VALUES (?, ?, ?, 0, 1)
-     ON CONFLICT(guild_id, ign_norm) DO UPDATE SET
-       completed_challenges = ign_points.completed_challenges + 1`,
-    [guildId, ignNorm, ign]
-  );
-}
-
-/* ────────────────────────────── */
-/* EXPORTS                       */
-/* ────────────────────────────── */
 
 module.exports = {
   init,
-
-  // challenge
-  createChallenge,
-  getChallengeById,
-  updateChallenge,
-  getChallengesByStatus,
-  getChallengesToStart,
-  getChallengesToExpire,
-  formatChallengeDuration, // ← NEW, CANONICAL
-
-  // claim
-  createChallengeClaim,
-  getChallengeClaimById,
-  updateChallengeClaim,
-  hasPendingClaim,
-
-  // ign
-  upsertPlayerIgn,
-  getPlayerByDiscordId,
-
-  // points
-  addDiscordPoints,
-  addIgnPoints,
-  incCompletedChallengeDiscord,
-  incCompletedChallengeIgn,
-
-  // utils
-  normIgn
+  run,
+  get,
+  all,
+  nowMs,
+  normIgn,
+  createEvent,
+  getEventById,
+  getCurrentEvent,
+  getActiveEvent,
+  getLeaderboard,
+  getEventsToStart,
+  getEventsToEnd,
+  updateEvent,
+  upsertEventUser,
+  addEventUserPoints
 };
