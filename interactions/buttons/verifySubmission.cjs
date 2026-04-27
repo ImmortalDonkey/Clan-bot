@@ -1,7 +1,12 @@
 const db = require('../../database.cjs');
 
-const FULL_SET_TYPES = ['normal', 'metallic', 'mystic', 'dark', 'shadow', 'shiny'];
-const SET_BONUS_POINTS = 20;
+const fs = require('fs');
+const path = require('path');
+
+function loadConfig() {
+  const configPath = path.join(__dirname, '..', '..', 'config', 'eventRewards.json');
+  return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+}
 
 function displaySpecies(species) {
   return String(species || '')
