@@ -1,7 +1,9 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, PermissionsBitField } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const db = require('../../database.cjs');
+
+const TEXT_CHANNEL_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
 
 function parseRelativeAmount(amount, unit) {
   const n = Number(amount);
@@ -57,14 +59,10 @@ function parseTime(input, now = Date.now()) {
   const lower = raw.toLowerCase();
 
   if (!raw) return null;
-
   if (lower === 'now') return now;
 
   const numeric = Number(raw);
-  if (Number.isFinite(numeric)) {
-    // Accept seconds or milliseconds.
-    return numeric < 10_000_000_000 ? numeric * 1000 : numeric;
-  }
+  if (Number.isFinite(numeric)) return numeric < 10_000_000_000 ? numeric * 1000 : numeric;
 
   const compactRelative = lower.match(/^now\s*\+\s*(\d+)\s*([a-z]+)$/);
   if (compactRelative) {
@@ -97,6 +95,20 @@ function parseTime(input, now = Date.now()) {
   return null;
 }
 
+function validateChannel(channel, label, interaction) {
+  if (!channel || !TEXT_CHANNEL_TYPES.includes(channel.type)) {
+    return `${label} must be a normal text or announcement channel.`;
+  }
+
+  const me = interaction.guild.members.me;
+  const perms = channel.permissionsFor(me);
+
+  if (!perms?.has(PermissionsBitField.Flags.ViewChannel)) return `Bot cannot view ${label}.`;
+  if (!perms?.has(PermissionsBitField.Flags.SendMessages)) return `Bot cannot send messages in ${label}.`;
+
+  return null;
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('eventcreate')
@@ -105,9 +117,9 @@ module.exports = {
     .addStringOption(o => o.setName('name').setDescription('Event name').setRequired(true))
     .addStringOption(o => o.setName('start').setDescription('Examples: now, now+5m, today 20:00, 27/04/2026 20:00').setRequired(true))
     .addStringOption(o => o.setName('end').setDescription('Examples: now+1h, tomorrow 18:30, 27/04/2026 22:00').setRequired(true))
-    .addChannelOption(o => o.setName('announcement_channel').setDescription('Announcement channel').addChannelTypes(ChannelType.GuildText).setRequired(true))
-    .addChannelOption(o => o.setName('log_channel').setDescription('Log channel').addChannelTypes(ChannelType.GuildText).setRequired(true))
-    .addChannelOption(o => o.setName('verification_channel').setDescription('Verification channel').addChannelTypes(ChannelType.GuildText).setRequired(true))
+    .addChannelOption(o => o.setName('announcement_channel').setDescription('Announcement channel').addChannelTypes(...TEXT_CHANNEL_TYPES).setRequired(true))
+    .addChannelOption(o => o.setName('log_channel').setDescription('Log channel').addChannelTypes(...TEXT_CHANNEL_TYPES).setRequired(true))
+    .addChannelOption(o => o.setName('verification_channel').setDescription('Verification channel').addChannelTypes(...TEXT_CHANNEL_TYPES).setRequired(true))
     .addRoleOption(o => o.setName('staff_role').setDescription('Staff role').setRequired(true)),
 
   async execute(client, interaction) {
@@ -122,10 +134,7 @@ module.exports = {
     );
 
     if (blockingEvent) {
-      return interaction.reply({
-        content: '❌ An event is already scheduled or active.',
-        ephemeral: true
-      });
+      return interaction.reply({ content: '❌ An event is already scheduled or active.', ephemeral: true });
     }
 
     const name = interaction.options.getString('name');
@@ -137,18 +146,7 @@ module.exports = {
 
     if (!start || !end || end <= start) {
       return interaction.reply({
-        content: [
-          '❌ Invalid start/end times.',
-          '',
-          'Valid examples:',
-          '`now`',
-          '`now+5m`',
-          '`now+1h`',
-          '`in 30 minutes`',
-          '`today 20:00`',
-          '`tomorrow 18:30`',
-          '`27/04/2026 20:00`'
-        ].join('\n'),
+        content: ['❌ Invalid start/end times.', '', 'Valid examples:', '`now`', '`now+5m`', '`now+1h`', '`in 30 minutes`', '`today 20:00`', '`tomorrow 18:30`', '`27/04/2026 20:00`'].join('\n'),
         ephemeral: true
       });
     }
@@ -158,10 +156,18 @@ module.exports = {
     const verification_channel = interaction.options.getChannel('verification_channel');
     const staff_role = interaction.options.getRole('staff_role');
 
+    const validationErrors = [
+      validateChannel(announcement_channel, 'announcement channel', interaction),
+      validateChannel(log_channel, 'log channel', interaction),
+      validateChannel(verification_channel, 'verification channel', interaction)
+    ].filter(Boolean);
+
+    if (validationErrors.length) {
+      return interaction.reply({ content: `❌ ${validationErrors.join('\n❌ ')}`, ephemeral: true });
+    }
+
     const configPath = path.join(__dirname, '..', '..', 'config', 'eventRewards.json');
-    const rewardConfig = fs.existsSync(configPath)
-      ? JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      : {};
+    const rewardConfig = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 'utf-8')) : {};
 
     const id = await db.createEvent({
       guild_id: guildId,
@@ -180,11 +186,7 @@ module.exports = {
     });
 
     await interaction.reply({
-      content: [
-        `✅ Event created (ID: ${id})`,
-        `Start: <t:${Math.floor(start / 1000)}:F>`,
-        `End: <t:${Math.floor(end / 1000)}:F>`
-      ].join('\n'),
+      content: [`✅ Event created (ID: ${id})`, `Start: <t:${Math.floor(start / 1000)}:F>`, `End: <t:${Math.floor(end / 1000)}:F>`].join('\n'),
       ephemeral: true
     });
   }
