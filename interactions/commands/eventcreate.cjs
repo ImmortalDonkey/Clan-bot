@@ -118,9 +118,9 @@ module.exports = {
     .addStringOption(o => o.setName('name').setDescription('Event name').setRequired(true))
     .addStringOption(o => o.setName('start').setDescription('Examples: now, now+5m, today 20:00, 27/04/2026 20:00').setRequired(true))
     .addStringOption(o => o.setName('end').setDescription('Examples: now+1h, tomorrow 18:30, 27/04/2026 22:00').setRequired(true))
-    .addChannelOption(o => o.setName('announcement_channel').setDescription('Announcement channel').addChannelTypes(...TEXT_CHANNEL_TYPES).setRequired(true))
-    .addChannelOption(o => o.setName('log_channel').setDescription('Log channel').addChannelTypes(...TEXT_CHANNEL_TYPES).setRequired(true))
-    .addChannelOption(o => o.setName('verification_channel').setDescription('Verification channel').addChannelTypes(...TEXT_CHANNEL_TYPES).setRequired(true))
+    .addChannelOption(o => o.setName('announcement_channel').setDescription('Announcement channel').setRequired(true))
+    .addChannelOption(o => o.setName('log_channel').setDescription('Log channel').setRequired(true))
+    .addChannelOption(o => o.setName('verification_channel').setDescription('Verification channel').setRequired(true))
     .addRoleOption(o => o.setName('staff_role').setDescription('Staff role').setRequired(true)),
 
   async execute(client, interaction) {
