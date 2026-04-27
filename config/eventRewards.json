@@ -11,5 +11,17 @@
     "200": "TBD",
     "250": "TBD",
     "300": "TBD"
+  },
+  "setBonus": {
+    "enabled": true,
+    "points": 20,
+    "requiredTypes": [
+      "normal",
+      "metallic",
+      "mystic",
+      "dark",
+      "shadow",
+      "shiny"
+    ]
   }
 }
