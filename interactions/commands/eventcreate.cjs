@@ -1,9 +1,10 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, PermissionsBitField } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, PermissionsBitField, MessageFlags } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const db = require('../../database.cjs');
 
 const TEXT_CHANNEL_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
+const PRIVATE_REPLY = MessageFlags.Ephemeral;
 
 function parseRelativeAmount(amount, unit) {
   const n = Number(amount);
@@ -134,7 +135,7 @@ module.exports = {
     );
 
     if (blockingEvent) {
-      return interaction.reply({ content: '❌ An event is already scheduled or active.', ephemeral: true });
+      return interaction.reply({ content: '❌ An event is already scheduled or active.', flags: PRIVATE_REPLY });
     }
 
     const name = interaction.options.getString('name');
@@ -147,7 +148,7 @@ module.exports = {
     if (!start || !end || end <= start) {
       return interaction.reply({
         content: ['❌ Invalid start/end times.', '', 'Valid examples:', '`now`', '`now+5m`', '`now+1h`', '`in 30 minutes`', '`today 20:00`', '`tomorrow 18:30`', '`27/04/2026 20:00`'].join('\n'),
-        ephemeral: true
+        flags: PRIVATE_REPLY
       });
     }
 
@@ -163,7 +164,7 @@ module.exports = {
     ].filter(Boolean);
 
     if (validationErrors.length) {
-      return interaction.reply({ content: `❌ ${validationErrors.join('\n❌ ')}`, ephemeral: true });
+      return interaction.reply({ content: `❌ ${validationErrors.join('\n❌ ')}`, flags: PRIVATE_REPLY });
     }
 
     const configPath = path.join(__dirname, '..', '..', 'config', 'eventRewards.json');
@@ -187,7 +188,7 @@ module.exports = {
 
     await interaction.reply({
       content: [`✅ Event created (ID: ${id})`, `Start: <t:${Math.floor(start / 1000)}:F>`, `End: <t:${Math.floor(end / 1000)}:F>`].join('\n'),
-      ephemeral: true
+      flags: PRIVATE_REPLY
     });
   }
 };
