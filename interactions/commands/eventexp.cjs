@@ -1,4 +1,10 @@
-const { SlashCommandBuilder } = require('discord.js');
+const {
+  SlashCommandBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  ActionRowBuilder
+} = require('discord.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -13,21 +19,20 @@ module.exports = {
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'start' || sub === 'end') {
-      return interaction.showModal({
-        customId: `exp_${sub}`,
-        title: `Import ${sub.toUpperCase()} EXP`,
-        components: [{
-          type: 1,
-          components: [{
-            type: 4,
-            customId: 'exp_input',
-            label: 'Paste EXP table',
-            style: 2,
-            required: true,
-            max_length: 4000
-          }]
-        }]
-      });
+      const modal = new ModalBuilder()
+        .setCustomId(`exp_${sub}`)
+        .setTitle(`Import ${sub.toUpperCase()} EXP`);
+
+      const input = new TextInputBuilder()
+        .setCustomId('exp_input')
+        .setLabel('Paste EXP table')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(true)
+        .setMaxLength(4000);
+
+      modal.addComponents(new ActionRowBuilder().addComponents(input));
+
+      return interaction.showModal(modal);
     }
 
     return interaction.reply({ content: `EXP ${sub} not yet wired.`, ephemeral: true });
