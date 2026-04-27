@@ -7,8 +7,6 @@ const commandHandler = require('./handlers/commandHandler.cjs');
 const buttonHandler = require('./handlers/buttonHandler.cjs');
 const modalHandler = require('./handlers/modalHandler.cjs');
 
-const { startChallengeScheduler } = require('./utils/challengeScheduler.cjs');
-
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -21,9 +19,8 @@ client.once('ready', async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
   await db.init();
-  startChallengeScheduler(client);
 
-  console.log('✅ Challenge scheduler running');
+  console.log('✅ Clan event system ready');
 });
 
 client.on('interactionCreate', async (interaction) => {
