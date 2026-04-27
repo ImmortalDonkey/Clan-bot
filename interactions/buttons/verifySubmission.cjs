@@ -1,5 +1,4 @@
 const db = require('../../database.cjs');
-
 const fs = require('fs');
 const path = require('path');
 
@@ -17,6 +16,14 @@ function displaySpecies(species) {
 }
 
 async function maybeAwardSetBonus(client, submission, event, logChannel) {
+  const config = loadConfig();
+  const setCfg = config.setBonus || {};
+
+  if (!setCfg.enabled) return false;
+
+  const requiredTypes = Array.isArray(setCfg.requiredTypes) ? setCfg.requiredTypes : [];
+  if (!requiredTypes.length) return false;
+
   const alreadyAwarded = await db.get(
     `SELECT 1 FROM set_bonuses
      WHERE event_id = ? AND discord_id = ? AND pokemon_species = ?
@@ -36,9 +43,11 @@ async function maybeAwardSetBonus(client, submission, event, logChannel) {
   );
 
   const ownedTypes = new Set(rows.map(row => row.pokemon_type));
-  const hasFullSet = FULL_SET_TYPES.every(type => ownedTypes.has(type));
+  const hasFullSet = requiredTypes.every(type => ownedTypes.has(type));
 
   if (!hasFullSet) return false;
+
+  const bonusPoints = Number.isInteger(setCfg.points) ? setCfg.points : 20;
 
   await db.run(
     `INSERT INTO set_bonuses
@@ -51,7 +60,7 @@ async function maybeAwardSetBonus(client, submission, event, logChannel) {
       submission.ign,
       submission.ign_norm,
       submission.pokemon_species,
-      SET_BONUS_POINTS,
+      bonusPoints,
       db.nowMs()
     ]
   );
@@ -61,15 +70,15 @@ async function maybeAwardSetBonus(client, submission, event, logChannel) {
     guild_id: submission.guild_id,
     discord_id: submission.discord_id,
     ign: submission.ign,
-    points: SET_BONUS_POINTS,
+    points: bonusPoints,
     reason: `full_set:${submission.pokemon_species}`
   });
 
   await logChannel.send(
-    `🔥 <@${submission.discord_id}> has completed the full ${displaySpecies(submission.pokemon_species)} set and earned +${SET_BONUS_POINTS} bonus points!`
+    `🔥 <@${submission.discord_id}> has completed the full ${displaySpecies(submission.pokemon_species)} set and earned +${bonusPoints} bonus points!`
   );
 
-  console.log(`🎯 Set bonus awarded: event=${event.id} user=${submission.discord_id} species=${submission.pokemon_species}`);
+  console.log(`🎯 Set bonus awarded: event=${event.id} user=${submission.discord_id} species=${submission.pokemon_species} points=${bonusPoints}`);
   return true;
 }
 
