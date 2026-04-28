@@ -1,6 +1,9 @@
+const { PermissionFlagsBits, MessageFlags } = require('discord.js');
 const db = require('../../database.cjs');
 const fs = require('fs');
 const path = require('path');
+
+const PRIVATE_REPLY = MessageFlags.Ephemeral;
 
 function loadConfig() {
   const configPath = path.join(__dirname, '..', '..', 'config', 'eventRewards.json');
@@ -13,6 +16,17 @@ function displaySpecies(species) {
     .filter(Boolean)
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function canVerify(interaction, event) {
+  const member = interaction.member;
+  const guild = interaction.guild;
+
+  const isOwner = guild?.ownerId === interaction.user.id;
+  const isAdmin = member?.permissions?.has(PermissionFlagsBits.Administrator);
+  const hasStaffRole = member?.roles?.cache?.has(event.staff_role_id);
+
+  return Boolean(isOwner || isAdmin || hasStaffRole);
 }
 
 async function maybeAwardSetBonus(client, submission, event, logChannel) {
@@ -94,14 +108,13 @@ module.exports = {
     if (!submission) return;
 
     if (submission.status !== 'PENDING') {
-      return interaction.reply({ content: 'Already processed.', ephemeral: true });
+      return interaction.reply({ content: 'Already processed.', flags: PRIVATE_REPLY });
     }
 
     const event = await db.getEventById(submission.event_id);
 
-    const hasStaffRole = interaction.member?.roles?.cache?.has(event.staff_role_id);
-    if (!hasStaffRole) {
-      return interaction.reply({ content: 'You do not have permission to verify submissions.', ephemeral: true });
+    if (!canVerify(interaction, event)) {
+      return interaction.reply({ content: 'You do not have permission to verify submissions.', flags: PRIVATE_REPLY });
     }
 
     if (isVerify) {
