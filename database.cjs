@@ -288,6 +288,12 @@ async function addEventUserPoints({ event_id, guild_id, discord_id, ign, points,
   );
 }
 
+async function addIgnEventPoints({ event_id, guild_id, ign, points, reason }) {
+  const ignNorm = normIgn(ign);
+  const discordId = `ign:${ignNorm}`;
+  await addEventUserPoints({ event_id, guild_id, discord_id: discordId, ign, points, reason });
+}
+
 module.exports = {
   init,
   run,
@@ -304,5 +310,6 @@ module.exports = {
   getEventsToEnd,
   updateEvent,
   upsertEventUser,
-  addEventUserPoints
+  addEventUserPoints,
+  addIgnEventPoints
 };
