@@ -29,7 +29,7 @@ function canVerify(interaction, event) {
   return Boolean(isOwner || isAdmin || hasStaffRole);
 }
 
-async function maybeAwardSetBonus(client, submission, event, logChannel) {
+async function maybeAwardSetBonus(client, submission, event, logChannel, shouldPostLog) {
   const config = loadConfig();
   const setCfg = config.setBonus || {};
 
@@ -88,9 +88,11 @@ async function maybeAwardSetBonus(client, submission, event, logChannel) {
     reason: `full_set:${submission.pokemon_species}`
   });
 
-  await logChannel.send(
-    `🔥 <@${submission.discord_id}> has completed the full ${displaySpecies(submission.pokemon_species)} set and earned +${bonusPoints} bonus points!`
-  );
+  if (shouldPostLog) {
+    await logChannel.send(
+      `🔥 <@${submission.discord_id}> has completed the full ${displaySpecies(submission.pokemon_species)} set and earned +${bonusPoints} bonus points!`
+    );
+  }
 
   console.log(`🎯 Set bonus awarded: event=${event.id} user=${submission.discord_id} species=${submission.pokemon_species} points=${bonusPoints}`);
   return true;
@@ -133,15 +135,18 @@ module.exports = {
       });
 
       const logChannel = await client.channels.fetch(event.log_channel_id);
+      const shouldPostLog = event.log_channel_id !== interaction.channelId;
 
-      await logChannel.send(
-        `<@${submission.discord_id}> found ${submission.pokemon_name} and earned ${submission.points_awarded} points.`
-      );
+      if (shouldPostLog) {
+        await logChannel.send(
+          `<@${submission.discord_id}> found ${submission.pokemon_name} and earned ${submission.points_awarded} points.`
+        );
+      }
 
-      await maybeAwardSetBonus(client, submission, event, logChannel);
+      await maybeAwardSetBonus(client, submission, event, logChannel, shouldPostLog);
 
       await interaction.update({
-        content: `✅ Verified by <@${interaction.user.id}>\nIGN: ${submission.ign}\nPokémon: ${submission.pokemon_name}\nID: ${submission.pokemon_id}\nPoints: ${submission.points_awarded}`,
+        content: `✅ Verified by <@${interaction.user.id}>\nUser: <@${submission.discord_id}>\nIGN: ${submission.ign}\nPokémon: ${submission.pokemon_name}\nID: ${submission.pokemon_id}\nPoints: ${submission.points_awarded}`,
         components: []
       });
     } else {
@@ -154,7 +159,7 @@ module.exports = {
       user.send(`Your submission (${submission.pokemon_name} ${submission.pokemon_id}) was rejected.`).catch(() => {});
 
       await interaction.update({
-        content: `❌ Rejected by <@${interaction.user.id}>\nIGN: ${submission.ign}\nPokémon: ${submission.pokemon_name}\nID: ${submission.pokemon_id}`,
+        content: `❌ Rejected by <@${interaction.user.id}>\nUser: <@${submission.discord_id}>\nIGN: ${submission.ign}\nPokémon: ${submission.pokemon_name}\nID: ${submission.pokemon_id}`,
         components: []
       });
     }
