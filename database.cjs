@@ -262,6 +262,16 @@ async function updateEvent(id, patch) {
 async function upsertEventUser({ event_id, guild_id, discord_id, ign }) {
   const ignNorm = normIgn(ign);
   const timestamp = nowMs();
+
+  const byIgn = await get(`SELECT * FROM event_users WHERE event_id = ? AND ign_norm = ?`, [event_id, ignNorm]);
+  if (byIgn) {
+    await run(
+      `UPDATE event_users SET ign = ?, updated_at = ? WHERE event_id = ? AND ign_norm = ?`,
+      [ign, timestamp, event_id, ignNorm]
+    );
+    return { ign, ignNorm, discordId: byIgn.discord_id };
+  }
+
   await run(
     `INSERT INTO event_users (event_id, guild_id, discord_id, ign, ign_norm, points, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, 0, ?, ?)
@@ -271,26 +281,27 @@ async function upsertEventUser({ event_id, guild_id, discord_id, ign }) {
        updated_at = excluded.updated_at`,
     [event_id, guild_id, discord_id, ign, ignNorm, timestamp, timestamp]
   );
-  return { ign, ignNorm };
+  return { ign, ignNorm, discordId: discord_id };
 }
 
 async function addEventUserPoints({ event_id, guild_id, discord_id, ign, points, reason }) {
-  const { ignNorm } = await upsertEventUser({ event_id, guild_id, discord_id, ign });
+  const { ignNorm, discordId } = await upsertEventUser({ event_id, guild_id, discord_id, ign });
   await run(
     `UPDATE event_users SET points = points + ?, updated_at = ?
-     WHERE event_id = ? AND discord_id = ?`,
-    [points, nowMs(), event_id, discord_id]
+     WHERE event_id = ? AND ign_norm = ?`,
+    [points, nowMs(), event_id, ignNorm]
   );
   await run(
     `INSERT INTO point_logs (event_id, guild_id, discord_id, ign, ign_norm, points, reason, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [event_id, guild_id, discord_id, ign, ignNorm, points, reason, nowMs()]
+    [event_id, guild_id, discordId, ign, ignNorm, points, reason, nowMs()]
   );
 }
 
 async function addIgnEventPoints({ event_id, guild_id, ign, points, reason }) {
   const ignNorm = normIgn(ign);
-  const discordId = `ign:${ignNorm}`;
+  const existing = await get(`SELECT * FROM event_users WHERE event_id = ? AND ign_norm = ?`, [event_id, ignNorm]);
+  const discordId = existing?.discord_id || `ign:${ignNorm}`;
   await addEventUserPoints({ event_id, guild_id, discord_id: discordId, ign, points, reason });
 }
 
