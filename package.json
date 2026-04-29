@@ -8,6 +8,7 @@
     "deploy": "node deploy-commands.cjs"
   },
   "dependencies": {
+    "canvas": "^2.11.2",
     "discord.js": "^14.15.3",
     "dotenv": "^16.4.5",
     "sqlite3": "^5.1.7"
