@@ -66,6 +66,32 @@ async function calculateExp(event, interaction) {
   return results;
 }
 
+async function postFinalLeaderboard(event, interaction) {
+  try {
+    const leaderboard = await db.getLeaderboard(event.id, 10);
+
+    const lines = leaderboard.map((row, index) => {
+      const medals = ['🥇', '🥈', '🥉'];
+      const prefix = medals[index] || `#${index + 1}`;
+      return `${prefix} ${row.ign} — ${row.points} pts`;
+    });
+
+    const channel = await interaction.client.channels.fetch(event.log_channel_id);
+    if (!channel) return;
+
+    await channel.send({
+      content:
+`🏆 **${event.name} — Final Results**
+
+${lines.join('\n')}
+
+🎉 Event complete.`
+    });
+  } catch (err) {
+    console.error('Failed to post final leaderboard:', err);
+  }
+}
+
 async function confirmExp(event, interaction) {
   const rows = await db.all(`SELECT * FROM exp_results WHERE event_id = ?`, [event.id]);
 
@@ -83,6 +109,8 @@ async function confirmExp(event, interaction) {
     status: 'COMPLETED',
     finalised_at: db.nowMs()
   });
+
+  await postFinalLeaderboard(event, interaction);
 
   return rows.length;
 }
