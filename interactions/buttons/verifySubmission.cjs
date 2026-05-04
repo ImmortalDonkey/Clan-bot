@@ -2,6 +2,7 @@ const { PermissionFlagsBits, MessageFlags } = require('discord.js');
 const db = require('../../database.cjs');
 const fs = require('fs');
 const path = require('path');
+const { sendCaptureLog } = require('../../services/captureLog.cjs');
 
 const PRIVATE_REPLY = MessageFlags.Ephemeral;
 
@@ -138,9 +139,7 @@ module.exports = {
       const shouldPostLog = event.log_channel_id !== interaction.channelId;
 
       if (shouldPostLog) {
-        await logChannel.send(
-          `<@${submission.discord_id}> found ${submission.pokemon_name} and earned ${submission.points_awarded} points.`
-        );
+        await sendCaptureLog(client, event, submission);
       }
 
       await maybeAwardSetBonus(client, submission, event, logChannel, shouldPostLog);
