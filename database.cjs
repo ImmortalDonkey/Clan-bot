@@ -57,6 +57,21 @@ function normIgn(ign) {
 async function init() {
   await run('PRAGMA foreign_keys = ON');
 
+  await run(`CREATE TABLE IF NOT EXISTS registered_igns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id TEXT NOT NULL,
+    discord_id TEXT NOT NULL,
+    ign TEXT NOT NULL,
+    ign_norm TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(guild_id, discord_id),
+    UNIQUE(guild_id, ign_norm)
+  )`);
+
+  await run(`CREATE INDEX IF NOT EXISTS idx_registered_igns_discord ON registered_igns(guild_id, discord_id)`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_registered_igns_ign ON registered_igns(guild_id, ign_norm)`);
+
   await run(`CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     guild_id TEXT NOT NULL,
@@ -259,6 +274,42 @@ async function updateEvent(id, patch) {
   await run(`UPDATE events SET ${sets} WHERE id = ?`, params);
 }
 
+async function registerIgn({ guild_id, discord_id, ign }) {
+  const cleanedIgn = String(ign || '').trim().replace(/\s+/g, ' ');
+  const ignNorm = normIgn(cleanedIgn);
+  const timestamp = nowMs();
+
+  const existingIgn = await get(
+    `SELECT discord_id FROM registered_igns WHERE guild_id = ? AND ign_norm = ? LIMIT 1`,
+    [guild_id, ignNorm]
+  );
+
+  if (existingIgn && existingIgn.discord_id !== discord_id) {
+    const err = new Error('IGN already registered');
+    err.code = 'IGN_ALREADY_REGISTERED';
+    throw err;
+  }
+
+  await run(
+    `INSERT INTO registered_igns (guild_id, discord_id, ign, ign_norm, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(guild_id, discord_id) DO UPDATE SET
+       ign = excluded.ign,
+       ign_norm = excluded.ign_norm,
+       updated_at = excluded.updated_at`,
+    [guild_id, discord_id, cleanedIgn, ignNorm, timestamp, timestamp]
+  );
+
+  return { guild_id, discord_id, ign: cleanedIgn, ign_norm: ignNorm };
+}
+
+async function getRegisteredIgn(guildId, discordId) {
+  return await get(
+    `SELECT * FROM registered_igns WHERE guild_id = ? AND discord_id = ? LIMIT 1`,
+    [guildId, discordId]
+  );
+}
+
 async function upsertEventUser({ event_id, guild_id, discord_id, ign }) {
   const ignNorm = normIgn(ign);
   const timestamp = nowMs();
@@ -320,6 +371,8 @@ module.exports = {
   getEventsToStart,
   getEventsToEnd,
   updateEvent,
+  registerIgn,
+  getRegisteredIgn,
   upsertEventUser,
   addEventUserPoints,
   addIgnEventPoints
