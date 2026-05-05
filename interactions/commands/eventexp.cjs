@@ -10,6 +10,48 @@ const db = require('../../database.cjs');
 const { getExpTargetEvent } = require('../../services/eventSelector.cjs');
 
 const EXP_PER_POINT = 125_000;
+const DISCORD_SAFE_MESSAGE_LENGTH = 1800;
+
+function chunkLines(header, lines, maxLength = DISCORD_SAFE_MESSAGE_LENGTH) {
+  const chunks = [];
+  let current = header;
+
+  for (const line of lines) {
+    const next = current ? `${current}\n${line}` : line;
+
+    if (next.length > maxLength && current) {
+      chunks.push(current);
+      current = line;
+    } else {
+      current = next;
+    }
+  }
+
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+async function replyWithChunks(interaction, chunks) {
+  if (!chunks.length) return;
+
+  await interaction.reply({
+    content: chunks[0],
+    flags: 64
+  });
+
+  for (const chunk of chunks.slice(1)) {
+    await interaction.followUp({
+      content: chunk,
+      flags: 64
+    });
+  }
+}
+
+async function sendChannelChunks(channel, chunks) {
+  for (const chunk of chunks) {
+    await channel.send({ content: chunk });
+  }
+}
 
 async function calculateExp(event, interaction) {
   const startRows = await db.all(
@@ -70,7 +112,7 @@ async function calculateExp(event, interaction) {
 
 async function postFinalLeaderboard(event, interaction) {
   try {
-    const leaderboard = await db.getLeaderboard(event.id, 10);
+    const leaderboard = await db.getLeaderboard(event.id, 1000);
 
     const lines = leaderboard.map((row, index) => {
       const medals = ['🥇', '🥈', '🥉'];
@@ -81,14 +123,12 @@ async function postFinalLeaderboard(event, interaction) {
     const channel = await interaction.client.channels.fetch(event.log_channel_id);
     if (!channel) return;
 
-    await channel.send({
-      content:
-`🏆 **${event.name} — Final Results**
+    const chunks = chunkLines(
+      `🏆 **${event.name} — Final Results**\n\nTotal players: ${leaderboard.length}`,
+      [...lines, '', '🎉 Event complete.']
+    );
 
-${lines.join('\n')}
-
-🎉 Event complete.`
-    });
+    await sendChannelChunks(channel, chunks);
   } catch (err) {
     console.error('Failed to post final leaderboard:', err);
   }
@@ -154,10 +194,12 @@ module.exports = {
     if (sub === 'calculate') {
       const results = await calculateExp(event, interaction);
 
-      return interaction.reply({
-        content: `📊 Calculated EXP for ${results.length} players\nRate: 125,000 EXP = 1 point\n\n${results.slice(0, 10).join('\n')}`,
-        flags: 64
-      });
+      const chunks = chunkLines(
+        `📊 Calculated EXP for ${results.length} players\nRate: 125,000 EXP = 1 point\n`,
+        results
+      );
+
+      return replyWithChunks(interaction, chunks);
     }
 
     if (sub === 'confirm') {
