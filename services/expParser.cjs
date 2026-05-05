@@ -1,3 +1,5 @@
+const EXP_PER_POINT = 125_000;
+
 function parseNumberToken(token) {
   if (!token) return null;
 
@@ -48,21 +50,26 @@ function parseExpTable(text) {
     const numberTokens = parts.slice(1).filter(part => /^\d[\d,.]*(?:[km])?$/i.test(part));
     if (!numberTokens.length) continue;
 
-    // The EXP column is the largest meaningful number in the row.
-    // This ignores Pokémon count and wins while handling 976.3k / 1.5m / 917,800,000.
     const parsedNumbers = numberTokens
       .map(token => ({ token, value: parseNumberToken(token) }))
       .filter(item => item.value !== null);
 
     if (!parsedNumbers.length) continue;
 
-    const experience = parsedNumbers.reduce((max, item) => item.value > max ? item.value : max, 0);
+    const experience = parsedNumbers.reduce(
+      (max, item) => item.value > max ? item.value : max,
+      0
+    );
 
     const key = ign.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
 
-    rows.push({ ign, ign_norm: key, experience });
+    rows.push({
+      ign,
+      ign_norm: key,
+      experience
+    });
   }
 
   return rows;
@@ -70,17 +77,19 @@ function parseExpTable(text) {
 
 function calculateExpPoints(expGained) {
   const gained = Math.max(0, Number(expGained) || 0);
-  const base = Math.floor(gained / 200_000);
-  const bonus = Math.floor(gained / 5_000_000) * 10;
+  const base = Math.floor(gained / EXP_PER_POINT);
+  const bonus = 0;
+
   return {
     exp_gained: gained,
     base_exp_points: base,
     bonus_exp_points: bonus,
-    total_exp_points: base + bonus
+    total_exp_points: base
   };
 }
 
 module.exports = {
+  EXP_PER_POINT,
   parseExpTable,
   parseNumberToken,
   calculateExpPoints
