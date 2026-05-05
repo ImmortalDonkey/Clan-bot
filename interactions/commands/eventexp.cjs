@@ -9,6 +9,8 @@ const {
 const db = require('../../database.cjs');
 const { getExpTargetEvent } = require('../../services/eventSelector.cjs');
 
+const EXP_PER_POINT = 125_000;
+
 async function calculateExp(event, interaction) {
   const startRows = await db.all(
     `SELECT ign, ign_norm, experience FROM exp_snapshots WHERE event_id = ? AND snapshot_type = 'START'`,
@@ -30,9 +32,9 @@ async function calculateExp(event, interaction) {
     const endExp = end.experience;
     const gained = Math.max(0, endExp - startExp);
 
-    const base = Math.floor(gained / 200000);
-    const bonus = Math.floor(gained / 5000000) * 10;
-    const total = base + bonus;
+    const base = Math.floor(gained / EXP_PER_POINT);
+    const bonus = 0;
+    const total = base;
 
     await db.run(
       `INSERT INTO exp_results
@@ -60,7 +62,7 @@ async function calculateExp(event, interaction) {
       ]
     );
 
-    results.push(`${end.ign} → +${gained.toLocaleString()} → ${total} pts`);
+    results.push(`${end.ign} → +${gained.toLocaleString()} EXP → ${total} pts`);
   }
 
   return results;
@@ -153,7 +155,7 @@ module.exports = {
       const results = await calculateExp(event, interaction);
 
       return interaction.reply({
-        content: `📊 Calculated EXP for ${results.length} players\n\n${results.slice(0, 10).join('\n')}`,
+        content: `📊 Calculated EXP for ${results.length} players\nRate: 125,000 EXP = 1 point\n\n${results.slice(0, 10).join('\n')}`,
         flags: 64
       });
     }
