@@ -1,5 +1,6 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const db = require('../../database.cjs');
+const { getRegisteredIgn } = require('../../services/ignRegistry.cjs');
 
 function parseType(name) {
   const lower = name.toLowerCase();
@@ -24,7 +25,12 @@ module.exports = {
       return interaction.reply({ content: 'No active event.', ephemeral: true });
     }
 
-    const ign = interaction.fields.getTextInputValue('ign');
+    const registeredIgn = await getRegisteredIgn(interaction.guildId, interaction.user.id);
+    if (!registeredIgn) {
+      return interaction.reply({ content: 'You must register your IGN before submitting. Use /registerign first.', ephemeral: true });
+    }
+
+    const ign = registeredIgn.ign;
     const name = interaction.fields.getTextInputValue('pokemon_name');
     const pokemonId = interaction.fields.getTextInputValue('pokemon_id');
 
@@ -64,7 +70,7 @@ module.exports = {
         interaction.guildId,
         interaction.user.id,
         ign,
-        db.normIgn(ign),
+        registeredIgn.ign_norm,
         name,
         species,
         type,
