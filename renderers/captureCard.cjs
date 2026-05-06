@@ -331,18 +331,32 @@ function strokeRounded(ctx, x, y, w, h, r, paint, lineWidth) {
   ctx.stroke();
 }
 
-function findBackgroundPath(types) {
-  const safeTypes = (types || ['normal']).filter(Boolean);
-  const candidates = [];
+function getBackgroundType(types) {
+  const safeTypes = (types || [])
+    .map(type => String(type || '').toLowerCase().trim())
+    .filter(Boolean);
 
-  if (safeTypes.length >= 2) {
-    candidates.push(`${safeTypes[0]}-${safeTypes[1]}.png`);
-    candidates.push(`${safeTypes[1]}-${safeTypes[0]}.png`);
+  if (!safeTypes.length) return 'normal';
+
+  if (safeTypes.length === 1) {
+    return safeTypes[0];
   }
 
-  if (safeTypes[0]) candidates.push(`${safeTypes[0]}.png`);
+  const [type1, type2] = safeTypes;
 
-  candidates.push('default.png');
+  if (type1 === 'normal' && type2) return type2;
+  if (type2 === 'normal') return type1;
+
+  return type1;
+}
+
+function findBackgroundPath(types) {
+  const bgType = getBackgroundType(types);
+
+  const candidates = [
+    `${bgType}.png`,
+    'default.png'
+  ];
 
   for (const file of candidates) {
     const fullPath = path.join(BG_DIR, file);
@@ -362,8 +376,9 @@ async function drawBackground(ctx, types) {
     return;
   }
 
-  const type1 = types[0] || 'normal';
-  const type2 = types[1] || type1;
+  const bgType = getBackgroundType(types);
+  const type1 = bgType || 'normal';
+  const type2 = bgType || type1;
   const c1 = TYPE_COLORS[type1] || '#222222';
   const c2 = TYPE_COLORS[type2] || c1;
 
