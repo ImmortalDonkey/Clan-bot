@@ -3,7 +3,9 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  ActionRowBuilder
+  ActionRowBuilder,
+  PermissionFlagsBits,
+  MessageFlags
 } = require('discord.js');
 
 const db = require('../../database.cjs');
@@ -11,6 +13,7 @@ const { getExpTargetEvent } = require('../../services/eventSelector.cjs');
 
 const EXP_PER_POINT = 125_000;
 const DISCORD_SAFE_MESSAGE_LENGTH = 1950;
+const PRIVATE_REPLY = MessageFlags.Ephemeral;
 
 function chunkLines(header, lines, maxLength = DISCORD_SAFE_MESSAGE_LENGTH) {
   const chunks = [];
@@ -36,13 +39,13 @@ async function replyWithChunks(interaction, chunks) {
 
   await interaction.reply({
     content: chunks[0],
-    flags: 64
+    flags: PRIVATE_REPLY
   });
 
   for (const chunk of chunks.slice(1)) {
     await interaction.followUp({
       content: chunk,
-      flags: 64
+      flags: PRIVATE_REPLY
     });
   }
 }
@@ -406,6 +409,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('eventexp')
     .setDescription('Manage event EXP')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand(s => s.setName('start').setDescription('Import start EXP'))
     .addSubcommand(s => s.setName('mid').setDescription('Import mid-event EXP and update the leaderboard'))
     .addSubcommand(s => s.setName('end').setDescription('Import end EXP'))
@@ -413,6 +417,13 @@ module.exports = {
     .addSubcommand(s => s.setName('confirm').setDescription('Apply final EXP points')),
 
   async execute(client, interaction) {
+    if (!interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({
+        content: '❌ You must be a Discord administrator to use this command.',
+        flags: PRIVATE_REPLY
+      });
+    }
+
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'start' || sub === 'mid' || sub === 'end') {
@@ -434,7 +445,7 @@ module.exports = {
 
     const event = await getExpTargetEvent(interaction.guildId);
     if (!event) {
-      return interaction.reply({ content: '❌ No event found.', flags: 64 });
+      return interaction.reply({ content: '❌ No event found.', flags: PRIVATE_REPLY });
     }
 
     if (sub === 'calculate') {
@@ -454,7 +465,7 @@ module.exports = {
 
       return interaction.reply({
         content: `🏁 Final EXP applied for ${count} players. Event finalised.`,
-        flags: 64
+        flags: PRIVATE_REPLY
       });
     }
   },
