@@ -78,9 +78,7 @@ function formatShortNumber(value) {
 
 function truncateText(value, maxLength) {
   const text = String(value || '');
-
   if (text.length <= maxLength) return text;
-
   return text.slice(0, maxLength);
 }
 
@@ -99,14 +97,14 @@ function pad(value, width, direction = 'right') {
 function buildFinalResultsTableChunks(event, rows) {
   const rankW = 2;
   const ignW = 16;
-  const caughtW = 2;
+  const caughtW = 7;
   const expW = 7;
   const pointsW = 5;
 
   const headerLine = [
     pad('#', rankW, 'left'),
     pad('IGN', ignW),
-    pad('PK', caughtW, 'left'),
+    pad('Pokemon', caughtW, 'left'),
     pad('EXP', expW, 'left'),
     pad('PTS', pointsW, 'left')
   ].join('|');
@@ -135,7 +133,7 @@ function buildFinalResultsTableChunks(event, rows) {
     `🏆 **${event.name} — Final Results**`,
     '',
     `Total scoring players: ${rows.length}`,
-    `Columns: Rank | IGN | Pokémon caught | EXP trained | Points`,
+    `Columns: Rank | IGN | Pokemon caught | EXP trained | Points`,
     '',
     '```text',
     headerLine,
@@ -205,61 +203,136 @@ function buildFinalResultsTableChunks(event, rows) {
   return chunks;
 }
 
-async function calculateExp(event, interaction) {
+async function removePointsForReason(eventId, reason) {
+  const rows = await db.all(
+    `SELECT ign_norm, SUM(points) AS points
+     FROM point_logs
+     WHERE event_id = ?
+       AND reason = ?
+     GROUP BY ign_norm`,
+    [eventId, reason]
+  );
+
+  for (const row of rows) {
+    const points = Number(row.points || 0);
+    if (!points) continue;
+
+    await db.run(
+      `UPDATE event_users
+       SET points = CASE
+           WHEN points - ? < 0 THEN 0
+           ELSE points - ?
+         END,
+         updated_at = ?
+       WHERE event_id = ?
+         AND ign_norm = ?`,
+      [points, points, db.nowMs(), eventId, row.ign_norm]
+    );
+  }
+
+  await db.run(
+    `DELETE FROM point_logs
+     WHERE event_id = ?
+       AND reason = ?`,
+    [eventId, reason]
+  );
+}
+
+async function calculateExpFromSnapshots(event, interaction, snapshotType, persistResults) {
   const startRows = await db.all(
-    `SELECT ign, ign_norm, experience FROM exp_snapshots WHERE event_id = ? AND snapshot_type = 'START'`,
+    `SELECT ign, ign_norm, experience
+     FROM exp_snapshots
+     WHERE event_id = ?
+       AND snapshot_type = 'START'`,
     [event.id]
   );
 
-  const endRows = await db.all(
-    `SELECT ign, ign_norm, experience FROM exp_snapshots WHERE event_id = ? AND snapshot_type = 'END'`,
-    [event.id]
+  const compareRows = await db.all(
+    `SELECT ign, ign_norm, experience
+     FROM exp_snapshots
+     WHERE event_id = ?
+       AND snapshot_type = ?`,
+    [event.id, snapshotType]
   );
 
   const startMap = new Map(startRows.map(r => [r.ign_norm, r]));
   const results = [];
 
-  for (const end of endRows) {
-    const start = startMap.get(end.ign_norm);
+  for (const compare of compareRows) {
+    const start = startMap.get(compare.ign_norm);
 
     const startExp = start ? start.experience : 0;
-    const endExp = end.experience;
-    const gained = Math.max(0, endExp - startExp);
+    const compareExp = compare.experience;
+    const gained = Math.max(0, compareExp - startExp);
 
     const base = Math.floor(gained / EXP_PER_POINT);
     const bonus = 0;
     const total = base;
 
-    await db.run(
-      `INSERT INTO exp_results
-       (event_id, guild_id, ign, ign_norm, start_exp, end_exp, exp_gained, base_exp_points, bonus_exp_points, total_exp_points, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(event_id, ign_norm) DO UPDATE SET
-         start_exp = excluded.start_exp,
-         end_exp = excluded.end_exp,
-         exp_gained = excluded.exp_gained,
-         base_exp_points = excluded.base_exp_points,
-         bonus_exp_points = excluded.bonus_exp_points,
-         total_exp_points = excluded.total_exp_points`,
-      [
-        event.id,
-        interaction.guildId,
-        end.ign,
-        end.ign_norm,
-        startExp,
-        endExp,
-        gained,
-        base,
-        bonus,
-        total,
-        db.nowMs()
-      ]
-    );
+    if (persistResults) {
+      await db.run(
+        `INSERT INTO exp_results
+         (event_id, guild_id, ign, ign_norm, start_exp, end_exp, exp_gained, base_exp_points, bonus_exp_points, total_exp_points, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(event_id, ign_norm) DO UPDATE SET
+           start_exp = excluded.start_exp,
+           end_exp = excluded.end_exp,
+           exp_gained = excluded.exp_gained,
+           base_exp_points = excluded.base_exp_points,
+           bonus_exp_points = excluded.bonus_exp_points,
+           total_exp_points = excluded.total_exp_points`,
+        [
+          event.id,
+          interaction.guildId,
+          compare.ign,
+          compare.ign_norm,
+          startExp,
+          compareExp,
+          gained,
+          base,
+          bonus,
+          total,
+          db.nowMs()
+        ]
+      );
+    }
 
-    results.push(`${end.ign} → +${gained.toLocaleString()} EXP → ${total} pts`);
+    results.push({
+      ign: compare.ign,
+      ign_norm: compare.ign_norm,
+      start_exp: startExp,
+      compare_exp: compareExp,
+      exp_gained: gained,
+      points: total,
+      line: `${compare.ign} → +${gained.toLocaleString()} EXP → ${total} pts`
+    });
   }
 
   return results;
+}
+
+async function applyMidExpPreview(event, interaction) {
+  await removePointsForReason(event.id, 'mid_exp');
+
+  const results = await calculateExpFromSnapshots(event, interaction, 'MID', false);
+
+  for (const row of results) {
+    if (row.points < 1) continue;
+
+    await db.addIgnEventPoints({
+      event_id: event.id,
+      guild_id: interaction.guildId,
+      ign: row.ign,
+      points: row.points,
+      reason: 'mid_exp'
+    });
+  }
+
+  return results;
+}
+
+async function calculateFinalExp(event, interaction) {
+  return await calculateExpFromSnapshots(event, interaction, 'END', true);
 }
 
 async function postFinalLeaderboard(event, interaction) {
@@ -304,6 +377,9 @@ async function postFinalLeaderboard(event, interaction) {
 }
 
 async function confirmExp(event, interaction) {
+  await removePointsForReason(event.id, 'mid_exp');
+  await removePointsForReason(event.id, 'exp');
+
   const rows = await db.all(`SELECT * FROM exp_results WHERE event_id = ?`, [event.id]);
 
   for (const row of rows) {
@@ -331,14 +407,15 @@ module.exports = {
     .setName('eventexp')
     .setDescription('Manage event EXP')
     .addSubcommand(s => s.setName('start').setDescription('Import start EXP'))
+    .addSubcommand(s => s.setName('mid').setDescription('Import mid-event EXP and update the leaderboard'))
     .addSubcommand(s => s.setName('end').setDescription('Import end EXP'))
-    .addSubcommand(s => s.setName('calculate').setDescription('Calculate EXP points'))
-    .addSubcommand(s => s.setName('confirm').setDescription('Apply EXP points')),
+    .addSubcommand(s => s.setName('calculate').setDescription('Calculate final EXP points from START and END only'))
+    .addSubcommand(s => s.setName('confirm').setDescription('Apply final EXP points')),
 
   async execute(client, interaction) {
     const sub = interaction.options.getSubcommand();
 
-    if (sub === 'start' || sub === 'end') {
+    if (sub === 'start' || sub === 'mid' || sub === 'end') {
       const modal = new ModalBuilder()
         .setCustomId(`exp_${sub}`)
         .setTitle(`Import ${sub.toUpperCase()} EXP`);
@@ -361,11 +438,12 @@ module.exports = {
     }
 
     if (sub === 'calculate') {
-      const results = await calculateExp(event, interaction);
+      const results = await calculateFinalExp(event, interaction);
+      const lines = results.map(row => row.line);
 
       const chunks = chunkLines(
-        `📊 Calculated EXP for ${results.length} players\nRate: 125,000 EXP = 1 point\n`,
-        results
+        `📊 Calculated FINAL EXP for ${results.length} players\nRate: 125,000 EXP = 1 point\nSource: START → END only\n`,
+        lines
       );
 
       return replyWithChunks(interaction, chunks);
@@ -375,9 +453,11 @@ module.exports = {
       const count = await confirmExp(event, interaction);
 
       return interaction.reply({
-        content: `🏁 EXP applied for ${count} players. Event finalised.`,
+        content: `🏁 Final EXP applied for ${count} players. Event finalised.`,
         flags: 64
       });
     }
-  }
+  },
+
+  applyMidExpPreview
 };
