@@ -337,10 +337,7 @@ function getBackgroundType(types) {
     .filter(Boolean);
 
   if (!safeTypes.length) return 'normal';
-
-  if (safeTypes.length === 1) {
-    return safeTypes[0];
-  }
+  if (safeTypes.length === 1) return safeTypes[0];
 
   const [type1, type2] = safeTypes;
 
@@ -377,10 +374,8 @@ async function drawBackground(ctx, types) {
   }
 
   const bgType = getBackgroundType(types);
-  const type1 = bgType || 'normal';
-  const type2 = bgType || type1;
-  const c1 = TYPE_COLORS[type1] || '#222222';
-  const c2 = TYPE_COLORS[type2] || c1;
+  const c1 = TYPE_COLORS[bgType] || '#222222';
+  const c2 = TYPE_COLORS[bgType] || c1;
 
   const bg = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
   bg.addColorStop(0, rgbaFromHex(c1, 0.85));
@@ -474,21 +469,7 @@ function wrapText(ctx, text, maxWidth) {
   return lines;
 }
 
-function fitFont(ctx, text, startSize, minSize, maxWidth, weight = 'bold') {
-  let size = startSize;
-
-  while (size > minSize) {
-    ctx.font = `${weight} ${size}px sans-serif`;
-
-    if (ctx.measureText(text).width <= maxWidth) break;
-
-    size -= 2;
-  }
-
-  return size;
-}
-
-function drawOutlinedText(ctx, text, x, y, fill, stroke = 'rgba(0,0,0,0.70)', lineWidth = 8) {
+function drawOutlinedText(ctx, text, x, y, fill, stroke = 'rgba(0,0,0,0.75)', lineWidth = 7) {
   ctx.save();
   ctx.lineWidth = lineWidth;
   ctx.strokeStyle = stroke;
@@ -498,42 +479,142 @@ function drawOutlinedText(ctx, text, x, y, fill, stroke = 'rgba(0,0,0,0.70)', li
   ctx.restore();
 }
 
-function drawMetaRowHeight(ctx, value, valueW) {
-  const fontSize = 64;
-  const lineHeight = Math.round(fontSize * 1.22);
+function buildTextLayout(ctx, data, textWidth, textHeight) {
+  const labels = ['Points:', 'Rarity:', 'Rank:'];
 
+  for (let fontSize = 74; fontSize >= 50; fontSize -= 2) {
+    ctx.font = `bold ${fontSize}px sans-serif`;
+
+    const lineHeight = Math.round(fontSize * 1.18);
+    const labelGap = 34;
+    const blockGapSmall = 10;
+    const blockGapMedium = 20;
+    const blockGapLarge = 34;
+
+    const usernameLines = wrapText(ctx, data.username, textWidth);
+    const narrativeLines = wrapText(ctx, 'has captured a wild', textWidth);
+    const pokemonLines = wrapText(ctx, data.pokemonName, textWidth);
+
+    const labelW = Math.max(...labels.map(label => ctx.measureText(label).width));
+    const valueW = textWidth - labelW - labelGap;
+
+    if (valueW < 120) continue;
+
+    const pointsLines = wrapText(ctx, String(data.points), valueW);
+    const rarityLines = wrapText(ctx, data.rarity, valueW);
+    const rankLines = wrapText(ctx, data.rank, valueW);
+
+    const totalHeight =
+      usernameLines.length * lineHeight +
+      blockGapSmall +
+      narrativeLines.length * lineHeight +
+      blockGapMedium +
+      pokemonLines.length * lineHeight +
+      blockGapLarge +
+      pointsLines.length * lineHeight +
+      blockGapSmall +
+      rarityLines.length * lineHeight +
+      blockGapSmall +
+      rankLines.length * lineHeight;
+
+    if (totalHeight <= textHeight) {
+      return {
+        fontSize,
+        lineHeight,
+        labelW,
+        labelGap,
+        blockGapSmall,
+        blockGapMedium,
+        blockGapLarge,
+        usernameLines,
+        narrativeLines,
+        pokemonLines,
+        pointsLines,
+        rarityLines,
+        rankLines,
+        totalHeight
+      };
+    }
+  }
+
+  // fallback smallest
+  const fontSize = 50;
   ctx.font = `bold ${fontSize}px sans-serif`;
 
-  const lines = wrapText(ctx, value, valueW);
+  const lineHeight = Math.round(fontSize * 1.18);
+  const labelGap = 34;
+  const blockGapSmall = 10;
+  const blockGapMedium = 20;
+  const blockGapLarge = 34;
 
-  return Math.max(1, lines.length) * lineHeight;
+  const usernameLines = wrapText(ctx, data.username, textWidth);
+  const narrativeLines = wrapText(ctx, 'has captured a wild', textWidth);
+  const pokemonLines = wrapText(ctx, data.pokemonName, textWidth);
+
+  const labelW = Math.max(...labels.map(label => ctx.measureText(label).width));
+  const valueW = textWidth - labelW - labelGap;
+
+  const pointsLines = wrapText(ctx, String(data.points), valueW);
+  const rarityLines = wrapText(ctx, data.rarity, valueW);
+  const rankLines = wrapText(ctx, data.rank, valueW);
+
+  const totalHeight =
+    usernameLines.length * lineHeight +
+    blockGapSmall +
+    narrativeLines.length * lineHeight +
+    blockGapMedium +
+    pokemonLines.length * lineHeight +
+    blockGapLarge +
+    pointsLines.length * lineHeight +
+    blockGapSmall +
+    rarityLines.length * lineHeight +
+    blockGapSmall +
+    rankLines.length * lineHeight;
+
+  return {
+    fontSize,
+    lineHeight,
+    labelW,
+    labelGap,
+    blockGapSmall,
+    blockGapMedium,
+    blockGapLarge,
+    usernameLines,
+    narrativeLines,
+    pokemonLines,
+    pointsLines,
+    rarityLines,
+    rankLines,
+    totalHeight
+  };
 }
 
-function drawMetaRow(ctx, label, value, x, y, labelW, valueW) {
-  const fontSize = 64;
-  const lineHeight = Math.round(fontSize * 1.22);
-
-  ctx.font = `bold ${fontSize}px sans-serif`;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-
-  drawOutlinedText(ctx, label, x, y, '#facc15', 'rgba(0,0,0,0.65)', 7);
-
-  const lines = wrapText(ctx, value, valueW);
-
+function drawMetaValueLines(ctx, lines, x, y, lineHeight) {
   for (let i = 0; i < lines.length; i += 1) {
     drawOutlinedText(
       ctx,
       lines[i],
-      x + labelW + 42,
+      x,
       y + i * lineHeight,
       '#ffffff',
-      'rgba(0,0,0,0.65)',
+      'rgba(0,0,0,0.72)',
       6
     );
   }
 
   return Math.max(1, lines.length) * lineHeight;
+}
+
+function drawMetaRow(ctx, label, lines, x, y, labelW, labelGap, lineHeight) {
+  drawOutlinedText(ctx, label, x, y, '#facc15', 'rgba(0,0,0,0.72)', 6);
+
+  return drawMetaValueLines(
+    ctx,
+    lines,
+    x + labelW + labelGap,
+    y,
+    lineHeight
+  );
 }
 
 async function createCaptureCard(capture) {
@@ -561,7 +642,6 @@ async function createCaptureCard(capture) {
     CARD_HEIGHT - EDGE,
     EDGE_RADIUS
   );
-
   ctx.clip();
 
   await drawBackground(ctx, types);
@@ -569,134 +649,133 @@ async function createCaptureCard(capture) {
   const innerW = CARD_WIDTH - MARGIN * 2;
   const innerH = CARD_HEIGHT - MARGIN * 2;
 
-  const panelX = MARGIN;
-  const panelY = MARGIN;
-  const panelH = innerH;
+  const textBoxX = MARGIN + 38;
+  const textBoxY = MARGIN + 68;
+  const textBoxW = Math.floor(innerW * 0.58);
+  const textBoxH = innerH - 136;
 
-  const leftW = Math.floor(innerW * 0.56);
-  const rightX = panelX + leftW + 35;
-  const rightW = innerW - leftW - 35;
+  const spriteZoneX = textBoxX + textBoxW + 34;
+  const spriteZoneW = CARD_WIDTH - MARGIN - spriteZoneX - 28;
+  const spriteZoneY = MARGIN + 50;
+  const spriteZoneH = innerH - 100;
 
-  const borderPaint = createTypeGradient(ctx, types, panelX, panelY, innerW, panelH);
+  const borderPaint = createTypeGradient(ctx, types, 0, 0, CARD_WIDTH, CARD_HEIGHT);
   const primaryColor = TYPE_COLORS[types[0] || 'normal'] || '#ffffff';
   const secondaryColor = TYPE_COLORS[types[1] || types[0] || 'normal'] || primaryColor;
 
+  // Text-only inner box
   ctx.save();
-
-  roundedRectPath(ctx, panelX, panelY, innerW, panelH, 44);
-  ctx.fillStyle = 'rgba(20,20,24,0.68)';
+  roundedRectPath(ctx, textBoxX, textBoxY, textBoxW, textBoxH, 40);
+  ctx.fillStyle = 'rgba(22,22,28,0.64)';
   ctx.fill();
 
   ctx.shadowColor = primaryColor;
-  ctx.shadowBlur = 12;
-  strokeRounded(ctx, panelX, panelY, innerW, panelH, 44, borderPaint, 18);
+  ctx.shadowBlur = 7;
+  strokeRounded(ctx, textBoxX, textBoxY, textBoxW, textBoxH, 40, borderPaint, 12);
 
   if (types[1]) {
     ctx.shadowColor = secondaryColor;
-    ctx.shadowBlur = 8;
-    strokeRounded(ctx, panelX, panelY, innerW, panelH, 44, borderPaint, 10);
+    ctx.shadowBlur = 4;
+    strokeRounded(ctx, textBoxX, textBoxY, textBoxW, textBoxH, 40, borderPaint, 7);
   }
 
   ctx.shadowBlur = 0;
-  strokeRounded(ctx, panelX, panelY, innerW, panelH, 44, borderPaint, 6);
-
+  strokeRounded(ctx, textBoxX, textBoxY, textBoxW, textBoxH, 40, borderPaint, 4);
   ctx.restore();
 
-  const contentX = panelX + 72;
-  const contentW = leftW - 118;
-  const contentCenterY = panelY + panelH / 2;
+  const contentPaddingX = 52;
+  const contentPaddingY = 44;
+  const contentX = textBoxX + contentPaddingX;
+  const contentY = textBoxY + contentPaddingY;
+  const contentW = textBoxW - contentPaddingX * 2;
+  const contentH = textBoxH - contentPaddingY * 2;
 
+  const layout = buildTextLayout(
+    ctx,
+    { username, pokemonName, points, rarity, rank },
+    contentW,
+    contentH
+  );
+
+  ctx.font = `bold ${layout.fontSize}px sans-serif`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
 
-  const usernameSize = fitFont(ctx, username, 78, 56, contentW, 'bold');
-  const narrativeSize = fitFont(ctx, 'has captured a wild', 74, 54, contentW, 'bold');
-  const pokemonSize = fitFont(ctx, pokemonName, 110, 58, contentW, 'bold');
+  let cursorY = contentY + Math.round((contentH - layout.totalHeight) / 2);
 
-  const usernameLineHeight = Math.round(usernameSize * 1.15);
-  const narrativeLineHeight = Math.round(narrativeSize * 1.15);
-  const pokemonLineHeight = Math.round(pokemonSize * 1.08);
-
-  ctx.font = `bold ${usernameSize}px sans-serif`;
-  const usernameLines = wrapText(ctx, username, contentW);
-
-  ctx.font = `bold ${narrativeSize}px sans-serif`;
-  const narrativeLines = wrapText(ctx, 'has captured a wild', contentW);
-
-  ctx.font = `bold ${pokemonSize}px sans-serif`;
-  const pokemonLines = wrapText(ctx, pokemonName, contentW);
-
-  ctx.font = 'bold 64px sans-serif';
-  const labels = ['Points:', 'Rarity:', 'Rank:'];
-  const labelW = Math.max(...labels.map(label => ctx.measureText(label).width));
-  const valueW = contentW - labelW - 42;
-
-  const metaHeights = [
-    drawMetaRowHeight(ctx, String(points), valueW),
-    drawMetaRowHeight(ctx, rarity, valueW),
-    drawMetaRowHeight(ctx, rank, valueW)
-  ];
-
-  const totalHeight =
-    usernameLines.length * usernameLineHeight +
-    12 +
-    narrativeLines.length * narrativeLineHeight +
-    26 +
-    pokemonLines.length * pokemonLineHeight +
-    60 +
-    metaHeights[0] +
-    20 +
-    metaHeights[1] +
-    20 +
-    metaHeights[2];
-
-  let cursorY = Math.round(contentCenterY - totalHeight / 2);
-
-  ctx.font = `bold ${usernameSize}px sans-serif`;
-
-  for (const line of usernameLines) {
-    drawOutlinedText(ctx, line, contentX, cursorY, '#86efac', 'rgba(0,0,0,0.72)', 8);
-    cursorY += usernameLineHeight;
+  for (const line of layout.usernameLines) {
+    drawOutlinedText(ctx, line, contentX, cursorY, '#86efac', 'rgba(0,0,0,0.74)', 7);
+    cursorY += layout.lineHeight;
   }
 
-  cursorY += 12;
+  cursorY += layout.blockGapSmall;
 
-  ctx.font = `bold ${narrativeSize}px sans-serif`;
-
-  for (const line of narrativeLines) {
-    drawOutlinedText(ctx, line, contentX, cursorY, '#ffffff', 'rgba(0,0,0,0.72)', 8);
-    cursorY += narrativeLineHeight;
+  for (const line of layout.narrativeLines) {
+    drawOutlinedText(ctx, line, contentX, cursorY, '#ffffff', 'rgba(0,0,0,0.74)', 7);
+    cursorY += layout.lineHeight;
   }
 
-  cursorY += 26;
+  cursorY += layout.blockGapMedium;
 
-  ctx.font = `bold ${pokemonSize}px sans-serif`;
+  const nameGradient = createTypeGradient(ctx, types, contentX, cursorY, contentW, layout.fontSize);
 
-  const nameGradient = createTypeGradient(ctx, types, contentX, cursorY, contentW, pokemonSize);
-
-  for (const line of pokemonLines) {
-    drawOutlinedText(ctx, line, contentX, cursorY, nameGradient, 'rgba(0,0,0,0.82)', 9);
-    cursorY += pokemonLineHeight;
+  for (const line of layout.pokemonLines) {
+    drawOutlinedText(ctx, line, contentX, cursorY, nameGradient, 'rgba(0,0,0,0.82)', 8);
+    cursorY += layout.lineHeight;
   }
 
-  cursorY += 60;
+  cursorY += layout.blockGapLarge;
 
-  cursorY += drawMetaRow(ctx, 'Points:', String(points), contentX, cursorY, labelW, valueW) + 20;
-  cursorY += drawMetaRow(ctx, 'Rarity:', rarity, contentX, cursorY, labelW, valueW) + 20;
-  drawMetaRow(ctx, 'Rank:', rank, contentX, cursorY, labelW, valueW);
+  cursorY += drawMetaRow(
+    ctx,
+    'Points:',
+    layout.pointsLines,
+    contentX,
+    cursorY,
+    layout.labelW,
+    layout.labelGap,
+    layout.lineHeight
+  );
 
+  cursorY += layout.blockGapSmall;
+
+  cursorY += drawMetaRow(
+    ctx,
+    'Rarity:',
+    layout.rarityLines,
+    contentX,
+    cursorY,
+    layout.labelW,
+    layout.labelGap,
+    layout.lineHeight
+  );
+
+  cursorY += layout.blockGapSmall;
+
+  drawMetaRow(
+    ctx,
+    'Rank:',
+    layout.rankLines,
+    contentX,
+    cursorY,
+    layout.labelW,
+    layout.labelGap,
+    layout.lineHeight
+  );
+
+  // Sprite directly on the background, not inside the box
   const sprite = await loadSprite(pokemonName, speciesName);
 
   if (sprite) {
-    const maxW = rightW - 80;
-    const maxH = panelH - 120;
+    const maxW = spriteZoneW - 20;
+    const maxH = spriteZoneH - 20;
     const scale = Math.min(maxW / sprite.width, maxH / sprite.height);
 
     const w = sprite.width * scale;
     const h = sprite.height * scale;
 
-    const x = rightX + (rightW - w) / 2;
-    const y = panelY + (panelH - h) / 2;
+    const x = spriteZoneX + (spriteZoneW - w) / 2;
+    const y = spriteZoneY + (spriteZoneH - h) / 2;
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
@@ -706,12 +785,12 @@ async function createCaptureCard(capture) {
 
   ctx.restore();
 
+  // Outer border
   ctx.save();
-
   const outerPaint = createTypeGradient(ctx, types, 0, 0, CARD_WIDTH, CARD_HEIGHT);
 
   ctx.shadowColor = primaryColor;
-  ctx.shadowBlur = 8;
+  ctx.shadowBlur = 6;
 
   roundedRectPath(
     ctx,
@@ -725,7 +804,6 @@ async function createCaptureCard(capture) {
   ctx.lineWidth = EDGE;
   ctx.strokeStyle = outerPaint;
   ctx.stroke();
-
   ctx.restore();
 
   const outPath = path.join(
