@@ -48,157 +48,37 @@ const TYPE_FALLBACKS = {
   squirtle: ['water'],
   wartortle: ['water'],
   blastoise: ['water'],
-  caterpie: ['bug'],
-  metapod: ['bug'],
-  butterfree: ['bug', 'flying'],
-  weedle: ['bug', 'poison'],
-  kakuna: ['bug', 'poison'],
-  beedrill: ['bug', 'poison'],
-  pidgey: ['normal', 'flying'],
-  pidgeotto: ['normal', 'flying'],
-  pidgeot: ['normal', 'flying'],
-  rattata: ['normal'],
-  raticate: ['normal'],
-  spearow: ['normal', 'flying'],
-  fearow: ['normal', 'flying'],
-  ekans: ['poison'],
-  arbok: ['poison'],
+
   pikachu: ['electric'],
   raichu: ['electric'],
-  sandshrew: ['ground'],
-  sandslash: ['ground'],
-  nidoran: ['poison'],
-  nidorina: ['poison'],
-  nidoqueen: ['poison', 'ground'],
-  nidorino: ['poison'],
-  nidoking: ['poison', 'ground'],
-  clefairy: ['fairy'],
-  clefable: ['fairy'],
-  vulpix: ['fire'],
-  ninetales: ['fire'],
-  jigglypuff: ['normal', 'fairy'],
-  wigglytuff: ['normal', 'fairy'],
-  zubat: ['poison', 'flying'],
-  golbat: ['poison', 'flying'],
-  oddish: ['grass', 'poison'],
-  gloom: ['grass', 'poison'],
-  vileplume: ['grass', 'poison'],
-  paras: ['bug', 'grass'],
-  parasect: ['bug', 'grass'],
-  venonat: ['bug', 'poison'],
-  venomoth: ['bug', 'poison'],
-  diglett: ['ground'],
-  dugtrio: ['ground'],
-  meowth: ['normal'],
-  persian: ['normal'],
-  psyduck: ['water'],
-  golduck: ['water'],
-  mankey: ['fighting'],
-  primeape: ['fighting'],
-  growlithe: ['fire'],
-  arcanine: ['fire'],
-  poliwag: ['water'],
-  poliwhirl: ['water'],
-  poliwrath: ['water', 'fighting'],
-  abra: ['psychic'],
-  kadabra: ['psychic'],
-  alakazam: ['psychic'],
-  machop: ['fighting'],
-  machoke: ['fighting'],
-  machamp: ['fighting'],
-  bellsprout: ['grass', 'poison'],
-  weepinbell: ['grass', 'poison'],
-  victreebel: ['grass', 'poison'],
-  tentacool: ['water', 'poison'],
-  tentacruel: ['water', 'poison'],
-  geodude: ['rock', 'ground'],
-  graveler: ['rock', 'ground'],
-  golem: ['rock', 'ground'],
-  ponyta: ['fire'],
-  rapidash: ['fire'],
-  slowpoke: ['water', 'psychic'],
-  slowbro: ['water', 'psychic'],
-  magnemite: ['electric', 'steel'],
-  magneton: ['electric', 'steel'],
-  farfetchd: ['normal', 'flying'],
-  doduo: ['normal', 'flying'],
-  dodrio: ['normal', 'flying'],
-  seel: ['water'],
-  dewgong: ['water', 'ice'],
-  grimer: ['poison'],
-  muk: ['poison'],
-  shellder: ['water'],
-  cloyster: ['water', 'ice'],
+
   gastly: ['ghost', 'poison'],
   haunter: ['ghost', 'poison'],
   gengar: ['ghost', 'poison'],
-  onix: ['rock', 'ground'],
-  drowzee: ['psychic'],
-  hypno: ['psychic'],
-  krabby: ['water'],
-  kingler: ['water'],
-  voltorb: ['electric'],
-  electrode: ['electric'],
-  exeggcute: ['grass', 'psychic'],
-  exeggutor: ['grass', 'psychic'],
-  cubone: ['ground'],
-  marowak: ['ground'],
-  hitmonlee: ['fighting'],
-  hitmonchan: ['fighting'],
-  lickitung: ['normal'],
-  koffing: ['poison'],
-  weezing: ['poison'],
-  rhyhorn: ['ground', 'rock'],
-  rhydon: ['ground', 'rock'],
-  chansey: ['normal'],
-  tangela: ['grass'],
-  kangaskhan: ['normal'],
-  horsea: ['water'],
-  seadra: ['water'],
-  goldeen: ['water'],
-  seaking: ['water'],
-  staryu: ['water'],
-  starmie: ['water', 'psychic'],
-  mrmime: ['psychic', 'fairy'],
-  scyther: ['bug', 'flying'],
-  jynx: ['ice', 'psychic'],
-  electabuzz: ['electric'],
-  magmar: ['fire'],
-  pinsir: ['bug'],
-  tauros: ['normal'],
+
   magikarp: ['water'],
   gyarados: ['water', 'flying'],
-  lapras: ['water', 'ice'],
-  ditto: ['normal'],
-  eevee: ['normal'],
-  vaporeon: ['water'],
-  jolteon: ['electric'],
-  flareon: ['fire'],
-  porygon: ['normal'],
-  omanyte: ['rock', 'water'],
-  omastar: ['rock', 'water'],
-  kabuto: ['rock', 'water'],
-  kabutops: ['rock', 'water'],
-  aerodactyl: ['rock', 'flying'],
-  snorlax: ['normal'],
-  articuno: ['ice', 'flying'],
-  zapdos: ['electric', 'flying'],
-  moltres: ['fire', 'flying'],
+
   dratini: ['dragon'],
   dragonair: ['dragon'],
   dragonite: ['dragon', 'flying'],
+
   mewtwo: ['psychic'],
   mew: ['psychic'],
-  cyclizar: ['dragon', 'normal'],
-  rayquaza: ['dragon', 'flying'],
-  kyogre: ['water'],
-  groudon: ['ground'],
+
   lugia: ['psychic', 'flying'],
   hooh: ['fire', 'flying'],
+  kyogre: ['water'],
+  groudon: ['ground'],
+  rayquaza: ['dragon', 'flying'],
+
   dialga: ['steel', 'dragon'],
   palkia: ['water', 'dragon'],
   giratina: ['ghost', 'dragon'],
+
   arceus: ['normal'],
+  cyclizar: ['dragon', 'normal'],
+
   walkingwake: ['water', 'dragon'],
   irontreads: ['ground', 'steel'],
   ironbundle: ['ice', 'water'],
@@ -206,10 +86,23 @@ const TYPE_FALLBACKS = {
   ironjugulis: ['dark', 'flying'],
   ironmoth: ['fire', 'poison'],
   ironthorns: ['rock', 'electric'],
-  ironvaliant: ['fairy', 'fighting']
+  ironvaliant: ['fairy', 'fighting'],
+
+  urshifu: ['dark', 'fighting'],
+  urshifusinglestrike: ['dark', 'fighting'],
+  urshifusinglestrikegigantamax: ['dark', 'fighting'],
+  urshifurapidstrike: ['water', 'fighting'],
+  urshifurapidstrikegigantamax: ['water', 'fighting']
 };
 
-const VORTEX_VARIANTS = ['shadow', 'shiny', 'metallic', 'mystic', 'dark', 'normal'];
+const VORTEX_VARIANTS = [
+  'shadow',
+  'shiny',
+  'metallic',
+  'mystic',
+  'dark',
+  'normal'
+];
 
 for (const dir of [OUTPUT_DIR, CACHE_DIR, SPRITE_CACHE_DIR, BG_DIR]) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -217,6 +110,7 @@ for (const dir of [OUTPUT_DIR, CACHE_DIR, SPRITE_CACHE_DIR, BG_DIR]) {
 
 function roundedRectPath(ctx, x, y, w, h, r) {
   const radius = Math.min(r, w / 2, h / 2);
+
   ctx.beginPath();
   ctx.moveTo(x + radius, y);
   ctx.lineTo(x + w - radius, y);
@@ -261,8 +155,10 @@ function stripVortexVariant(name) {
 
   while (changed) {
     changed = false;
+
     for (const variant of VORTEX_VARIANTS) {
       const re = new RegExp(`^${variant}\\s+`, 'i');
+
       if (re.test(output)) {
         output = output.replace(re, '').trim();
         changed = true;
@@ -273,8 +169,44 @@ function stripVortexVariant(name) {
   return output || displayName(name);
 }
 
+function canonicalSpeciesName(name) {
+  let raw = stripVortexVariant(name);
+  const lower = raw.toLowerCase();
+
+  if (lower.includes('urshifu')) {
+    if (
+      lower.includes('single strike') ||
+      lower.includes('(ss gigantamax)') ||
+      lower.includes('(ss gmax)') ||
+      lower.includes('ss gigantamax')
+    ) {
+      return 'urshifu single strike';
+    }
+
+    if (
+      lower.includes('rapid strike') ||
+      lower.includes('(rs gigantamax)') ||
+      lower.includes('(rs gmax)') ||
+      lower.includes('rs gigantamax')
+    ) {
+      return 'urshifu rapid strike';
+    }
+
+    return 'urshifu';
+  }
+
+  raw = raw
+    .replace(/\s*\([^)]*\)\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return raw || displayName(name);
+}
+
 function toPokeApiSlug(name) {
-  return stripVortexVariant(name)
+  const canonical = canonicalSpeciesName(name);
+
+  return canonical
     .toLowerCase()
     .replace(/♀/g, '-f')
     .replace(/♂/g, '-m')
@@ -317,6 +249,7 @@ async function fetchPokemonTypes(speciesName) {
   if (!res.ok) return null;
 
   const json = await res.json();
+
   const types = (json.types || [])
     .sort((a, b) => a.slot - b.slot)
     .map(entry => String(entry.type?.name || '').toLowerCase())
@@ -326,25 +259,43 @@ async function fetchPokemonTypes(speciesName) {
 }
 
 async function resolvePokemonTypes(pokemonName, speciesName) {
-  const species = stripVortexVariant(speciesName || pokemonName);
-  const key = normaliseKey(species);
+  const candidates = [
+    canonicalSpeciesName(pokemonName),
+    canonicalSpeciesName(speciesName),
+    speciesName,
+    pokemonName
+  ]
+    .filter(Boolean)
+    .map(value => displayName(value));
 
-  if (TYPE_FALLBACKS[key]) return TYPE_FALLBACKS[key];
-
-  const cache = readTypeCache();
-  if (Array.isArray(cache[key]) && cache[key].length) {
-    return cache[key].filter(type => TYPE_COLORS[type]).slice(0, 2);
+  for (const candidate of candidates) {
+    const key = normaliseKey(candidate);
+    if (TYPE_FALLBACKS[key]) return TYPE_FALLBACKS[key];
   }
 
-  try {
-    const fetched = await fetchPokemonTypes(species);
-    if (fetched?.length) {
-      cache[key] = fetched;
-      writeTypeCache(cache);
-      return fetched;
+  const cache = readTypeCache();
+
+  for (const candidate of candidates) {
+    const key = normaliseKey(candidate);
+
+    if (Array.isArray(cache[key]) && cache[key].length) {
+      return cache[key].filter(type => TYPE_COLORS[type]).slice(0, 2);
     }
-  } catch (err) {
-    console.warn(`Failed to resolve Pokémon types for ${species}:`, err.message);
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const fetched = await fetchPokemonTypes(candidate);
+
+      if (fetched?.length) {
+        const key = normaliseKey(candidate);
+        cache[key] = fetched;
+        writeTypeCache(cache);
+        return fetched;
+      }
+    } catch (err) {
+      console.warn(`Failed to resolve Pokémon types for ${candidate}:`, err.message);
+    }
   }
 
   return ['normal'];
@@ -360,6 +311,7 @@ function createTypeGradient(ctx, types, x, y, w, h) {
   const gradient = ctx.createLinearGradient(x, y, x + w, y + h);
   gradient.addColorStop(0, TYPE_COLORS[type1] || '#ffffff');
   gradient.addColorStop(1, TYPE_COLORS[type2] || '#ffffff');
+
   return gradient;
 }
 
@@ -368,6 +320,7 @@ function rgbaFromHex(hex, alpha) {
   const r = parseInt(value.slice(0, 2), 16) || 255;
   const g = parseInt(value.slice(2, 4), 16) || 255;
   const b = parseInt(value.slice(4, 6), 16) || 255;
+
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
@@ -388,6 +341,7 @@ function findBackgroundPath(types) {
   }
 
   if (safeTypes[0]) candidates.push(`${safeTypes[0]}.png`);
+
   candidates.push('default.png');
 
   for (const file of candidates) {
@@ -400,6 +354,7 @@ function findBackgroundPath(types) {
 
 async function drawBackground(ctx, types) {
   const bgPath = findBackgroundPath(types);
+
   if (bgPath) {
     const bg = await loadImage(bgPath);
     ctx.imageSmoothingEnabled = false;
@@ -413,25 +368,29 @@ async function drawBackground(ctx, types) {
   const c2 = TYPE_COLORS[type2] || c1;
 
   const bg = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
-  bg.addColorStop(0, rgbaFromHex(c1, 0.95));
+  bg.addColorStop(0, rgbaFromHex(c1, 0.85));
   bg.addColorStop(0.52, '#1f2937');
-  bg.addColorStop(1, rgbaFromHex(c2, 0.95));
+  bg.addColorStop(1, rgbaFromHex(c2, 0.85));
+
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 
   ctx.save();
-  ctx.globalAlpha = 0.18;
+  ctx.globalAlpha = 0.08;
   ctx.fillStyle = '#ffffff';
+
   for (let i = 0; i < 42; i += 1) {
     const x = (i * 197) % CARD_WIDTH;
     const y = (i * 113) % CARD_HEIGHT;
     const size = 24 + ((i * 17) % 72);
+
     roundedRectPath(ctx, x, y, size, size, 12);
     ctx.fill();
   }
+
   ctx.restore();
 
-  ctx.fillStyle = 'rgba(0,0,0,0.30)';
+  ctx.fillStyle = 'rgba(0,0,0,0.42)';
   ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 }
 
@@ -453,7 +412,11 @@ function spriteUrl(name) {
 }
 
 async function loadSprite(pokemonName, speciesName) {
-  const candidates = [displayName(pokemonName), titleCase(stripVortexVariant(speciesName || pokemonName))]
+  const candidates = [
+    displayName(pokemonName),
+    titleCase(canonicalSpeciesName(pokemonName)),
+    titleCase(canonicalSpeciesName(speciesName))
+  ]
     .filter(Boolean)
     .filter((value, index, arr) => arr.indexOf(value) === index);
 
@@ -483,6 +446,7 @@ function wrapText(ctx, text, maxWidth) {
 
   for (const word of words) {
     const test = line ? `${line} ${word}` : word;
+
     if (ctx.measureText(test).width > maxWidth && line) {
       lines.push(line);
       line = word;
@@ -497,11 +461,15 @@ function wrapText(ctx, text, maxWidth) {
 
 function fitFont(ctx, text, startSize, minSize, maxWidth, weight = 'bold') {
   let size = startSize;
+
   while (size > minSize) {
     ctx.font = `${weight} ${size}px sans-serif`;
+
     if (ctx.measureText(text).width <= maxWidth) break;
-    size -= 4;
+
+    size -= 2;
   }
+
   return size;
 }
 
@@ -515,9 +483,20 @@ function drawOutlinedText(ctx, text, x, y, fill, stroke = 'rgba(0,0,0,0.70)', li
   ctx.restore();
 }
 
+function drawMetaRowHeight(ctx, value, valueW) {
+  const fontSize = 64;
+  const lineHeight = Math.round(fontSize * 1.22);
+
+  ctx.font = `bold ${fontSize}px sans-serif`;
+
+  const lines = wrapText(ctx, value, valueW);
+
+  return Math.max(1, lines.length) * lineHeight;
+}
+
 function drawMetaRow(ctx, label, value, x, y, labelW, valueW) {
   const fontSize = 64;
-  const lineHeight = Math.round(fontSize * 1.25);
+  const lineHeight = Math.round(fontSize * 1.22);
 
   ctx.font = `bold ${fontSize}px sans-serif`;
   ctx.textAlign = 'left';
@@ -525,28 +504,31 @@ function drawMetaRow(ctx, label, value, x, y, labelW, valueW) {
 
   drawOutlinedText(ctx, label, x, y, '#facc15', 'rgba(0,0,0,0.65)', 7);
 
-  ctx.fillStyle = '#ffffff';
   const lines = wrapText(ctx, value, valueW);
+
   for (let i = 0; i < lines.length; i += 1) {
-    drawOutlinedText(ctx, lines[i], x + labelW + 42, y + i * lineHeight, '#ffffff', 'rgba(0,0,0,0.65)', 6);
+    drawOutlinedText(
+      ctx,
+      lines[i],
+      x + labelW + 42,
+      y + i * lineHeight,
+      '#ffffff',
+      'rgba(0,0,0,0.65)',
+      6
+    );
   }
 
   return Math.max(1, lines.length) * lineHeight;
 }
 
-function typeLabel(types) {
-  return (types || ['normal'])
-    .map(type => String(type || '').toUpperCase())
-    .join(' / ');
-}
-
 async function createCaptureCard(capture) {
   const username = displayName(capture.username || capture.ign || 'Unknown');
   const pokemonName = displayName(capture.pokemonName || capture.pokemon || 'Unknown');
-  const speciesName = displayName(capture.speciesName || stripVortexVariant(pokemonName));
+  const speciesName = displayName(capture.speciesName || canonicalSpeciesName(pokemonName));
   const points = Number.isFinite(Number(capture.points)) ? Number(capture.points) : 0;
   const rarity = displayName(capture.rarity || capture.rarityLabel || 'Normal');
   const rank = displayName(capture.rank || 'Unranked');
+
   const types = Array.isArray(capture.types) && capture.types.length
     ? capture.types.map(type => String(type).toLowerCase()).filter(type => TYPE_COLORS[type]).slice(0, 2)
     : await resolvePokemonTypes(pokemonName, speciesName);
@@ -555,18 +537,27 @@ async function createCaptureCard(capture) {
   const ctx = canvas.getContext('2d');
 
   ctx.save();
-  roundedRectPath(ctx, EDGE / 2, EDGE / 2, CARD_WIDTH - EDGE, CARD_HEIGHT - EDGE, EDGE_RADIUS);
+
+  roundedRectPath(
+    ctx,
+    EDGE / 2,
+    EDGE / 2,
+    CARD_WIDTH - EDGE,
+    CARD_HEIGHT - EDGE,
+    EDGE_RADIUS
+  );
+
   ctx.clip();
 
   await drawBackground(ctx, types);
 
   const innerW = CARD_WIDTH - MARGIN * 2;
   const innerH = CARD_HEIGHT - MARGIN * 2;
+
   const panelX = MARGIN;
   const panelY = MARGIN;
-  const barH = 126;
-  const gap = 42;
-  const panelH = innerH - barH - gap;
+  const panelH = innerH;
+
   const leftW = Math.floor(innerW * 0.56);
   const rightX = panelX + leftW + 35;
   const rightW = innerW - leftW - 35;
@@ -576,107 +567,159 @@ async function createCaptureCard(capture) {
   const secondaryColor = TYPE_COLORS[types[1] || types[0] || 'normal'] || primaryColor;
 
   ctx.save();
+
   roundedRectPath(ctx, panelX, panelY, innerW, panelH, 44);
-  ctx.fillStyle = 'rgba(20,20,24,0.62)';
+  ctx.fillStyle = 'rgba(20,20,24,0.68)';
   ctx.fill();
 
   ctx.shadowColor = primaryColor;
-  ctx.shadowBlur = 36;
-  strokeRounded(ctx, panelX, panelY, innerW, panelH, 44, borderPaint, 22);
+  ctx.shadowBlur = 12;
+  strokeRounded(ctx, panelX, panelY, innerW, panelH, 44, borderPaint, 18);
 
   if (types[1]) {
     ctx.shadowColor = secondaryColor;
-    ctx.shadowBlur = 26;
-    strokeRounded(ctx, panelX, panelY, innerW, panelH, 44, borderPaint, 14);
+    ctx.shadowBlur = 8;
+    strokeRounded(ctx, panelX, panelY, innerW, panelH, 44, borderPaint, 10);
   }
 
   ctx.shadowBlur = 0;
-  strokeRounded(ctx, panelX, panelY, innerW, panelH, 44, borderPaint, 10);
+  strokeRounded(ctx, panelX, panelY, innerW, panelH, 44, borderPaint, 6);
+
   ctx.restore();
 
   const contentX = panelX + 72;
-  const contentY = panelY + 82;
   const contentW = leftW - 118;
+  const contentCenterY = panelY + panelH / 2;
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
 
-  ctx.font = 'bold 74px sans-serif';
-  drawOutlinedText(ctx, username, contentX, contentY, '#86efac', 'rgba(0,0,0,0.72)', 8);
+  const usernameSize = fitFont(ctx, username, 78, 56, contentW, 'bold');
+  const narrativeSize = fitFont(ctx, 'has captured a wild', 74, 54, contentW, 'bold');
+  const pokemonSize = fitFont(ctx, pokemonName, 110, 58, contentW, 'bold');
 
-  ctx.font = 'bold 74px sans-serif';
-  drawOutlinedText(ctx, 'has captured a wild', contentX, contentY + 92, '#ffffff', 'rgba(0,0,0,0.72)', 8);
+  const usernameLineHeight = Math.round(usernameSize * 1.15);
+  const narrativeLineHeight = Math.round(narrativeSize * 1.15);
+  const pokemonLineHeight = Math.round(pokemonSize * 1.08);
 
-  const pokemonFontSize = fitFont(ctx, pokemonName, 118, 72, contentW, 'bold');
-  ctx.font = `bold ${pokemonFontSize}px sans-serif`;
-  const nameY = contentY + 214;
-  const nameGradient = createTypeGradient(ctx, types, contentX, nameY, contentW, pokemonFontSize);
-  ctx.save();
-  ctx.shadowColor = primaryColor;
-  ctx.shadowBlur = 24;
-  drawOutlinedText(ctx, pokemonName, contentX, nameY, nameGradient, 'rgba(0,0,0,0.82)', 10);
-  ctx.restore();
+  ctx.font = `bold ${usernameSize}px sans-serif`;
+  const usernameLines = wrapText(ctx, username, contentW);
+
+  ctx.font = `bold ${narrativeSize}px sans-serif`;
+  const narrativeLines = wrapText(ctx, 'has captured a wild', contentW);
+
+  ctx.font = `bold ${pokemonSize}px sans-serif`;
+  const pokemonLines = wrapText(ctx, pokemonName, contentW);
 
   ctx.font = 'bold 64px sans-serif';
   const labels = ['Points:', 'Rarity:', 'Rank:'];
   const labelW = Math.max(...labels.map(label => ctx.measureText(label).width));
   const valueW = contentW - labelW - 42;
-  let metaY = nameY + pokemonFontSize + 72;
 
-  metaY += drawMetaRow(ctx, 'Points:', String(points), contentX, metaY, labelW, valueW) + 20;
-  metaY += drawMetaRow(ctx, 'Rarity:', rarity, contentX, metaY, labelW, valueW) + 20;
-  drawMetaRow(ctx, 'Rank:', rank, contentX, metaY, labelW, valueW);
+  const metaHeights = [
+    drawMetaRowHeight(ctx, String(points), valueW),
+    drawMetaRowHeight(ctx, rarity, valueW),
+    drawMetaRowHeight(ctx, rank, valueW)
+  ];
+
+  const totalHeight =
+    usernameLines.length * usernameLineHeight +
+    12 +
+    narrativeLines.length * narrativeLineHeight +
+    26 +
+    pokemonLines.length * pokemonLineHeight +
+    60 +
+    metaHeights[0] +
+    20 +
+    metaHeights[1] +
+    20 +
+    metaHeights[2];
+
+  let cursorY = Math.round(contentCenterY - totalHeight / 2);
+
+  ctx.font = `bold ${usernameSize}px sans-serif`;
+
+  for (const line of usernameLines) {
+    drawOutlinedText(ctx, line, contentX, cursorY, '#86efac', 'rgba(0,0,0,0.72)', 8);
+    cursorY += usernameLineHeight;
+  }
+
+  cursorY += 12;
+
+  ctx.font = `bold ${narrativeSize}px sans-serif`;
+
+  for (const line of narrativeLines) {
+    drawOutlinedText(ctx, line, contentX, cursorY, '#ffffff', 'rgba(0,0,0,0.72)', 8);
+    cursorY += narrativeLineHeight;
+  }
+
+  cursorY += 26;
+
+  ctx.font = `bold ${pokemonSize}px sans-serif`;
+
+  const nameGradient = createTypeGradient(ctx, types, contentX, cursorY, contentW, pokemonSize);
+
+  for (const line of pokemonLines) {
+    drawOutlinedText(ctx, line, contentX, cursorY, nameGradient, 'rgba(0,0,0,0.82)', 9);
+    cursorY += pokemonLineHeight;
+  }
+
+  cursorY += 60;
+
+  cursorY += drawMetaRow(ctx, 'Points:', String(points), contentX, cursorY, labelW, valueW) + 20;
+  cursorY += drawMetaRow(ctx, 'Rarity:', rarity, contentX, cursorY, labelW, valueW) + 20;
+  drawMetaRow(ctx, 'Rank:', rank, contentX, cursorY, labelW, valueW);
 
   const sprite = await loadSprite(pokemonName, speciesName);
+
   if (sprite) {
     const maxW = rightW - 80;
-    const maxH = panelH - 150;
+    const maxH = panelH - 120;
     const scale = Math.min(maxW / sprite.width, maxH / sprite.height);
+
     const w = sprite.width * scale;
     const h = sprite.height * scale;
+
     const x = rightX + (rightW - w) / 2;
-    const y = panelY + 78 + (maxH - h) / 2;
+    const y = panelY + (panelH - h) / 2;
 
     ctx.save();
-    ctx.shadowColor = primaryColor;
-    ctx.shadowBlur = 34;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(sprite, x, y, w, h);
     ctx.restore();
   }
 
-  const barY = CARD_HEIGHT - MARGIN - barH;
-  ctx.save();
-  roundedRectPath(ctx, MARGIN, barY, innerW, barH, 34);
-  ctx.fillStyle = 'rgba(255,255,255,0.94)';
-  ctx.fill();
-  ctx.shadowColor = primaryColor;
-  ctx.shadowBlur = 26;
-  strokeRounded(ctx, MARGIN, barY, innerW, barH, 34, borderPaint, 20);
-  ctx.shadowBlur = 0;
-  strokeRounded(ctx, MARGIN, barY, innerW, barH, 34, borderPaint, 8);
-  ctx.restore();
-
-  ctx.font = 'bold 74px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#111827';
-  ctx.fillText(typeLabel(types), CARD_WIDTH / 2, barY + barH / 2 + 2);
-
   ctx.restore();
 
   ctx.save();
+
   const outerPaint = createTypeGradient(ctx, types, 0, 0, CARD_WIDTH, CARD_HEIGHT);
+
   ctx.shadowColor = primaryColor;
-  ctx.shadowBlur = 24;
-  roundedRectPath(ctx, EDGE / 2, EDGE / 2, CARD_WIDTH - EDGE, CARD_HEIGHT - EDGE, EDGE_RADIUS);
+  ctx.shadowBlur = 8;
+
+  roundedRectPath(
+    ctx,
+    EDGE / 2,
+    EDGE / 2,
+    CARD_WIDTH - EDGE,
+    CARD_HEIGHT - EDGE,
+    EDGE_RADIUS
+  );
+
   ctx.lineWidth = EDGE;
   ctx.strokeStyle = outerPaint;
   ctx.stroke();
+
   ctx.restore();
 
-  const outPath = path.join(OUTPUT_DIR, `capture_${Date.now()}_${Math.floor(Math.random() * 100000)}.png`);
+  const outPath = path.join(
+    OUTPUT_DIR,
+    `capture_${Date.now()}_${Math.floor(Math.random() * 100000)}.png`
+  );
+
   fs.writeFileSync(outPath, canvas.toBuffer('image/png'));
+
   return outPath;
 }
 
@@ -684,5 +727,6 @@ module.exports = {
   TYPE_COLORS,
   createCaptureCard,
   resolvePokemonTypes,
-  stripVortexVariant
+  stripVortexVariant,
+  canonicalSpeciesName
 };
