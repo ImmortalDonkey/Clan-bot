@@ -10,7 +10,7 @@ const db = require('../../database.cjs');
 const { getExpTargetEvent } = require('../../services/eventSelector.cjs');
 
 const EXP_PER_POINT = 125_000;
-const DISCORD_SAFE_MESSAGE_LENGTH = 1800;
+const DISCORD_SAFE_MESSAGE_LENGTH = 1950;
 
 function chunkLines(header, lines, maxLength = DISCORD_SAFE_MESSAGE_LENGTH) {
   const chunks = [];
@@ -53,8 +53,27 @@ async function sendChannelChunks(channel, chunks) {
   }
 }
 
-function formatNumber(value) {
-  return Number(value || 0).toLocaleString();
+function formatShortNumber(value) {
+  const n = Number(value || 0);
+
+  if (!Number.isFinite(n) || n <= 0) return '0';
+
+  if (n >= 1_000_000_000) {
+    const v = n / 1_000_000_000;
+    return `${Number.isInteger(v) ? v.toFixed(0) : v.toFixed(1)}b`;
+  }
+
+  if (n >= 1_000_000) {
+    const v = n / 1_000_000;
+    return `${Number.isInteger(v) ? v.toFixed(0) : v.toFixed(1)}m`;
+  }
+
+  if (n >= 1_000) {
+    const v = n / 1_000;
+    return `${Number.isInteger(v) ? v.toFixed(0) : v.toFixed(1)}k`;
+  }
+
+  return String(Math.floor(n));
 }
 
 function truncateText(value, maxLength) {
@@ -62,7 +81,7 @@ function truncateText(value, maxLength) {
 
   if (text.length <= maxLength) return text;
 
-  return `${text.slice(0, Math.max(0, maxLength - 1))}…`;
+  return text.slice(0, maxLength);
 }
 
 function pad(value, width, direction = 'right') {
@@ -78,19 +97,19 @@ function pad(value, width, direction = 'right') {
 }
 
 function buildFinalResultsTableChunks(event, rows) {
-  const rankW = 4;
-  const ignW = 24;
-  const caughtW = 14;
-  const expW = 13;
-  const pointsW = 8;
+  const rankW = 2;
+  const ignW = 16;
+  const caughtW = 2;
+  const expW = 7;
+  const pointsW = 5;
 
   const headerLine = [
-    pad('Rank', rankW),
+    pad('#', rankW, 'left'),
     pad('IGN', ignW),
-    pad('Pokemon Caught', caughtW),
-    pad('EXP Trained', expW),
-    pad('Points', pointsW)
-  ].join(' | ');
+    pad('PK', caughtW, 'left'),
+    pad('EXP', expW, 'left'),
+    pad('PTS', pointsW, 'left')
+  ].join('|');
 
   const dividerLine = [
     '-'.repeat(rankW),
@@ -98,7 +117,7 @@ function buildFinalResultsTableChunks(event, rows) {
     '-'.repeat(caughtW),
     '-'.repeat(expW),
     '-'.repeat(pointsW)
-  ].join('-+-');
+  ].join('+');
 
   const tableLines = rows.map((row, index) => {
     const rank = index + 1;
@@ -106,65 +125,82 @@ function buildFinalResultsTableChunks(event, rows) {
     return [
       pad(rank, rankW, 'left'),
       pad(truncateText(row.ign, ignW), ignW),
-      pad(formatNumber(row.pokemon_caught), caughtW, 'left'),
-      pad(formatNumber(row.exp_trained), expW, 'left'),
-      pad(formatNumber(row.points), pointsW, 'left')
-    ].join(' | ');
+      pad(formatShortNumber(row.pokemon_caught), caughtW, 'left'),
+      pad(formatShortNumber(row.exp_trained), expW, 'left'),
+      pad(formatShortNumber(row.points), pointsW, 'left')
+    ].join('|');
   });
 
+  const intro = [
+    `🏆 **${event.name} — Final Results**`,
+    '',
+    `Total scoring players: ${rows.length}`,
+    `Columns: Rank | IGN | Pokémon caught | EXP trained | Points`,
+    '',
+    '```text',
+    headerLine,
+    dividerLine
+  ];
+
+  const outro = [
+    '```',
+    '',
+    '🎉 Event complete.'
+  ];
+
+  if (!tableLines.length) {
+    return [[
+      `🏆 **${event.name} — Final Results**`,
+      '',
+      'No players earned points.',
+      '',
+      '🎉 Event complete.'
+    ].join('\n')];
+  }
+
+  const fullMessage = [
+    ...intro,
+    ...tableLines,
+    ...outro
+  ].join('\n');
+
+  if (fullMessage.length <= DISCORD_SAFE_MESSAGE_LENGTH) {
+    return [fullMessage];
+  }
+
   const chunks = [];
-  let currentLines = [headerLine, dividerLine];
+  let currentLines = [...intro];
 
   for (const line of tableLines) {
     const candidate = [
-      `🏆 **${event.name} — Final Results**`,
-      '',
-      `Total players: ${rows.length}`,
-      '',
-      '```text',
       ...currentLines,
       line,
-      '```'
+      ...outro
     ].join('\n');
 
-    if (candidate.length > DISCORD_SAFE_MESSAGE_LENGTH && currentLines.length > 2) {
+    if (candidate.length > DISCORD_SAFE_MESSAGE_LENGTH && currentLines.length > intro.length) {
       chunks.push([
-        `🏆 **${event.name} — Final Results**`,
-        '',
-        `Total players: ${rows.length}`,
-        '',
-        '```text',
         ...currentLines,
         '```'
       ].join('\n'));
 
-      currentLines = [headerLine, dividerLine, line];
+      currentLines = [
+        `🏆 **${event.name} — Final Results continued**`,
+        '',
+        '```text',
+        headerLine,
+        dividerLine,
+        line
+      ];
     } else {
       currentLines.push(line);
     }
   }
 
-  if (currentLines.length > 2) {
-    chunks.push([
-      `🏆 **${event.name} — Final Results**`,
-      '',
-      `Total players: ${rows.length}`,
-      '',
-      '```text',
-      ...currentLines,
-      '```',
-      '',
-      '🎉 Event complete.'
-    ].join('\n'));
-  } else {
-    chunks.push([
-      `🏆 **${event.name} — Final Results**`,
-      '',
-      'No players found.',
-      '',
-      '🎉 Event complete.'
-    ].join('\n'));
-  }
+  chunks.push([
+    ...currentLines,
+    ...outro
+  ].join('\n'));
 
   return chunks;
 }
@@ -251,6 +287,7 @@ async function postFinalLeaderboard(event, interaction) {
          ON er.event_id = eu.event_id
         AND er.ign_norm = eu.ign_norm
        WHERE eu.event_id = ?
+         AND eu.points >= 1
        ORDER BY eu.points DESC, eu.ign COLLATE NOCASE ASC`,
       [event.id, event.id]
     );
