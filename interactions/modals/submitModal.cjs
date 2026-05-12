@@ -1,19 +1,37 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  MessageFlags
+} = require('discord.js');
+
 const db = require('../../database.cjs');
 const { getRegisteredIgn } = require('../../services/ignRegistry.cjs');
 
+const PRIVATE_REPLY = MessageFlags.Ephemeral;
+
 function parseType(name) {
-  const lower = name.toLowerCase();
-  if (lower.includes('shadow')) return 'shadow';
-  if (lower.includes('shiny')) return 'shiny';
-  if (lower.includes('metallic')) return 'metallic';
-  if (lower.includes('mystic')) return 'mystic';
-  if (lower.includes('dark')) return 'dark';
+  const firstWord = String(name || '')
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)[0];
+
+  if (firstWord === 'shadow') return 'shadow';
+  if (firstWord === 'shiny') return 'shiny';
+  if (firstWord === 'metallic') return 'metallic';
+  if (firstWord === 'mystic') return 'mystic';
+  if (firstWord === 'dark') return 'dark';
+  if (firstWord === 'normal') return 'normal';
+
   return 'normal';
 }
 
 function parseSpecies(name) {
-  return name.split(' ').slice(-1)[0].toLowerCase();
+  return String(name || '')
+    .trim()
+    .split(/\s+/)
+    .slice(-1)[0]
+    .toLowerCase();
 }
 
 module.exports = {
@@ -22,12 +40,18 @@ module.exports = {
   async execute(client, interaction) {
     const event = await db.getActiveEvent(interaction.guildId);
     if (!event) {
-      return interaction.reply({ content: 'No active event.', ephemeral: true });
+      return interaction.reply({
+        content: 'No active event.',
+        flags: PRIVATE_REPLY
+      });
     }
 
     const registeredIgn = await getRegisteredIgn(interaction.guildId, interaction.user.id);
     if (!registeredIgn) {
-      return interaction.reply({ content: 'You must register your IGN before submitting. Use /registerign first.', ephemeral: true });
+      return interaction.reply({
+        content: 'You must register your IGN before submitting. Use /registerign first.',
+        flags: PRIVATE_REPLY
+      });
     }
 
     const ign = registeredIgn.ign;
@@ -35,7 +59,10 @@ module.exports = {
     const pokemonId = interaction.fields.getTextInputValue('pokemon_id');
 
     if (!pokemonId.startsWith('#')) {
-      return interaction.reply({ content: 'Invalid Pokémon ID format.', ephemeral: true });
+      return interaction.reply({
+        content: 'Invalid Pokémon ID format.',
+        flags: PRIVATE_REPLY
+      });
     }
 
     const exists = await db.get(
@@ -44,7 +71,10 @@ module.exports = {
     );
 
     if (exists) {
-      return interaction.reply({ content: 'This Pokémon ID was already submitted.', ephemeral: true });
+      return interaction.reply({
+        content: 'This Pokémon ID was already submitted.',
+        flags: PRIVATE_REPLY
+      });
     }
 
     const type = parseType(name);
@@ -81,8 +111,15 @@ module.exports = {
     );
 
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`verify_${res.lastID}`).setLabel('Verify').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`reject_${res.lastID}`).setLabel('Reject').setStyle(ButtonStyle.Danger)
+      new ButtonBuilder()
+        .setCustomId(`verify_${res.lastID}`)
+        .setLabel('Verify')
+        .setStyle(ButtonStyle.Success),
+
+      new ButtonBuilder()
+        .setCustomId(`reject_${res.lastID}`)
+        .setLabel('Reject')
+        .setStyle(ButtonStyle.Danger)
     );
 
     const channel = await client.channels.fetch(event.verification_channel_id);
@@ -92,6 +129,9 @@ module.exports = {
       components: [row]
     });
 
-    await interaction.reply({ content: 'Submission sent for verification.', ephemeral: true });
+    await interaction.reply({
+      content: 'Submission sent for verification.',
+      flags: PRIVATE_REPLY
+    });
   }
 };
